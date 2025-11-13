@@ -1,7 +1,10 @@
+/// 회원가입 다이얼로그 화면
+/// - 실시간 입력값 유효성 검사
+/// - 회원가입 성공 시 userId 자동 저장 (자동채움용)
+/// - 중복 클릭 방지 및 에러 처리
 import 'package:flutter/material.dart';
-import 'package:dio/dio.dart';
-import '../api/auth_api.dart';
-import '../utils/validators.dart';
+import 'package:provider/provider.dart';
+import '../features/auth/providers/register_provider.dart';
 
 class RegisterDialog extends StatefulWidget {
   const RegisterDialog({super.key});
@@ -11,109 +14,235 @@ class RegisterDialog extends StatefulWidget {
 }
 
 class _RegisterDialogState extends State<RegisterDialog> {
+  final _formKey = GlobalKey<FormState>();
   final _idCtrl = TextEditingController();
   final _pwCtrl = TextEditingController();
   final _pw2Ctrl = TextEditingController();
-  bool _loading = false;
-  String? _error;
 
-  bool get _disabled {
-    final id = _idCtrl.text.trim();
-    final pw = _pwCtrl.text;
-    final pw2 = _pw2Ctrl.text;
-    if (!Validators.isValidUserId(id)) return true;
-    if (!Validators.isValidPassword(pw)) return true;
-    if (pw != pw2) return true;
-    return _loading;
+  @override
+  void dispose() {
+    _idCtrl.dispose();
+    _pwCtrl.dispose();
+    _pw2Ctrl.dispose();
+    super.dispose();
   }
 
-  Future<void> _submit() async {
-    setState(() {
-      _loading = true;
-      _error = null;
-    });
-    try {
-      final res = await AuthApi.I.register(
-        userId: _idCtrl.text.trim(),
-        password: _pwCtrl.text,
-        passwordConfirm: _pw2Ctrl.text, // 프론트에서만 검증용
+  Future<void> _handleSubmit() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    final provider = context.read<RegisterProvider>();
+    if (provider.isLoading) return; // 중복 클릭 방지
+
+    final success = await provider.register(
+      userId: _idCtrl.text.trim(),
+      password: _pwCtrl.text,
+      passwordConfirm: _pw2Ctrl.text,
+    );
+
+    if (!mounted) return;
+
+    if (success) {
+      // 성공 시 스낵바 표시 및 화면 닫기
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('회원가입이 완료되었습니다.'),
+          backgroundColor: Colors.green,
+        ),
       );
-      final msg = (res['message'] ?? '').toString();
-      if (msg.contains('완료')) {
-        if (mounted) {
-          Navigator.of(context).pop(true);
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('회원가입이 완료되었습니다.')),
-          );
-        }
-      } else {
-        // 백엔드 응답 형식에 맞게 에러 메시지 처리
-        setState(() => _error = msg.isNotEmpty ? msg : '회원가입 실패');
-      }
-    } catch (e) {
-      // Dio 에러 처리
-      if (e is DioException) {
-        final errorData = e.response?.data;
-        if (errorData is Map) {
-          final errorMsg = errorData['message']?.toString() ?? '회원가입 실패';
-          setState(() => _error = errorMsg);
-        } else {
-          setState(() => _error = '회원가입 실패');
-        }
-      } else {
-        setState(() => _error = '회원가입 실패');
-      }
-    } finally {
-      if (mounted) setState(() => _loading = false);
+      Navigator.of(context).pop(true);
+    } else {
+      // 실패 시 에러 메시지 표시
+      final errorMsg = provider.errorMessage ?? '회원가입 실패';
+      final errorCode = provider.errorCode;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorCode != null ? '$errorMsg ($errorCode)' : errorMsg),
+          backgroundColor: Colors.red,
+        ),
+      );
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    return Dialog(
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              _input(_idCtrl, '아이디 (영문/숫자 4–20자)'),
-              const SizedBox(height: 8),
-              _input(_pwCtrl, '비밀번호 (6자 이상)', obscure: true),
-              const SizedBox(height: 8),
-              _input(_pw2Ctrl, '비밀번호 확인', obscure: true),
-              if (_error != null) ...[
-                const SizedBox(height: 8),
-                Text(_error!, style: const TextStyle(color: Colors.red)),
-              ],
-              const SizedBox(height: 12),
-              _primaryButton(
-                text: _loading ? '처리 중...' : '회원가입',
-                disabled: _disabled,
-                onPressed: _submit,
+    return ChangeNotifierProvider(
+      create: (_) => RegisterProvider(),
+      child: Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+        child: Container(
+          decoration: BoxDecoration(
+            color: Colors.grey[200],
+            borderRadius: BorderRadius.circular(12),
+          ),
+          padding: const EdgeInsets.all(20),
+          child: SingleChildScrollView(
+            child: Form(
+              key: _formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // 우측 상단 X 버튼
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.close, color: Color(0xFF1890FF)),
+                        onPressed: () => Navigator.of(context).pop(false),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  // 아이디 입력 필드 - 실시간 검증
+                  Consumer<RegisterProvider>(
+                    builder: (context, provider, _) {
+                      return _labeledInput(
+                        _idCtrl,
+                        '아이디',
+                        obscure: false,
+                        errorText: provider.userIdError,
+                        onChanged: (value) => provider.validateUserId(value),
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  // 비밀번호 입력 필드 - 실시간 검증
+                  Consumer<RegisterProvider>(
+                    builder: (context, provider, _) {
+                      return _labeledInput(
+                        _pwCtrl,
+                        '비밀번호',
+                        obscure: true,
+                        errorText: provider.passwordError,
+                        onChanged: (value) {
+                          provider.validatePassword(value);
+                          // 비밀번호 확인도 다시 검증
+                          provider.validatePasswordConfirm(value, _pw2Ctrl.text);
+                        },
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 16),
+                  // 비밀번호 확인 입력 필드 - 실시간 검증
+                  Consumer<RegisterProvider>(
+                    builder: (context, provider, _) {
+                      return _labeledInput(
+                        _pw2Ctrl,
+                        '비밀번호 확인',
+                        obscure: true,
+                        errorText: provider.passwordConfirmError,
+                        onChanged: (value) => provider.validatePasswordConfirm(_pwCtrl.text, value),
+                      );
+                    },
+                  ),
+                  // 에러 메시지 표시
+                  Consumer<RegisterProvider>(
+                    builder: (context, provider, _) {
+                      if (provider.errorMessage != null) {
+                        return Column(
+                          children: [
+                            const SizedBox(height: 12),
+                            Text(
+                              provider.errorMessage!,
+                              style: const TextStyle(color: Colors.red, fontSize: 12),
+                            ),
+                          ],
+                        );
+                      }
+                      return const SizedBox.shrink();
+                    },
+                  ),
+                  const SizedBox(height: 20),
+                  // 회원가입 버튼
+                  Consumer<RegisterProvider>(
+                    builder: (context, provider, _) {
+                      return _primaryButton(
+                        text: provider.isLoading ? '처리 중...' : '회원가입',
+                        disabled: !provider.isFormValid(
+                          _idCtrl.text.trim(),
+                          _pwCtrl.text,
+                          _pw2Ctrl.text,
+                        ) || provider.isLoading,
+                        onPressed: _handleSubmit,
+                      );
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  // 취소 버튼
+                  _grayButton(
+                    text: '취소',
+                    onPressed: () => Navigator.of(context).pop(false),
+                  ),
+                ],
               ),
-              const SizedBox(height: 8),
-              _grayButton(
-                text: '취소',
-                onPressed: () => Navigator.of(context).pop(false),
-              ),
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _input(TextEditingController c, String hint, {bool obscure = false}) {
-    return TextField(
-      controller: c,
-      obscureText: obscure,
-      decoration: InputDecoration(
-        hintText: hint,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
-      ),
+  Widget _labeledInput(
+    TextEditingController c,
+    String label, {
+    bool obscure = false,
+    String? errorText,
+    ValueChanged<String>? onChanged,
+  }) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            SizedBox(
+              width: 100,
+              child: Text(
+                label,
+                style: const TextStyle(
+                  fontSize: 14,
+                  color: Colors.black87,
+                ),
+              ),
+            ),
+            Expanded(
+              child: TextField(
+                controller: c,
+                obscureText: obscure,
+                onChanged: onChanged,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: BorderSide(color: Colors.grey[300]!),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Color(0xFF1890FF), width: 1),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.red, width: 1),
+                  ),
+                  focusedErrorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: const BorderSide(color: Colors.red, width: 1),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                  errorText: errorText,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
     );
   }
 
@@ -125,7 +254,7 @@ class _RegisterDialogState extends State<RegisterDialog> {
         style: ElevatedButton.styleFrom(
           backgroundColor: disabled ? Colors.grey[300] : const Color(0xFF1890FF),
           foregroundColor: disabled ? Colors.black54 : Colors.white,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           padding: const EdgeInsets.symmetric(vertical: 14),
         ),
         child: Text(text),
@@ -140,8 +269,8 @@ class _RegisterDialogState extends State<RegisterDialog> {
         onPressed: onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: Colors.grey[300],
-          foregroundColor: Colors.black87,
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          foregroundColor: const Color(0xFF1890FF),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           padding: const EdgeInsets.symmetric(vertical: 14),
         ),
         child: Text(text),
