@@ -1,3 +1,10 @@
 {
-    "cmake.ignoreCMakeListsMissing": true
+    "cmake.ignoreCMakeListsMissing": true,
+    "dart.flutterSdkPath": "C:\\Users\\user\\flutter",
+    "dart.analysisExcludedFolders": [
+        ".dart_tool",
+        "build"
+    ],
+    "dart.enableSdkFormatter": true,
+    "dart.lineLength": 80
 }

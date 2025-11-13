@@ -2,6 +2,7 @@
 /// - 회원가입, 로그인, 로그아웃 API 호출
 /// - Dio 인터셉터를 통한 자동 토큰 관리 및 401 처리
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../services/auth_service.dart';
 import 'dio_interceptor.dart';
 
@@ -11,9 +12,22 @@ class AuthApi {
   late final Dio _dio;
 
   AuthApi._internal() {
+    // 서버 주소 설정
+    // 환경 변수가 설정되어 있으면 사용, 없으면 기본값 사용
+    final envBaseUrl = const String.fromEnvironment('API_BASE_URL', defaultValue: '');
+    
+    // 기본값: 실제 서버 주소
+    const defaultBaseUrl = 'http://124.61.202.9:8080';
+    
+    final baseUrl = envBaseUrl.isEmpty ? defaultBaseUrl : envBaseUrl;
+    
+    // 디버그: 실제 사용 중인 baseUrl 출력
+    if (kDebugMode) {
+      print('API Base URL: $baseUrl');
+    }
+    
     _dio = Dio(BaseOptions(
-      baseUrl: const String.fromEnvironment('API_BASE_URL',
-          defaultValue: 'http://localhost:3000'),
+      baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 8),
       receiveTimeout: const Duration(seconds: 8),
       headers: {'Content-Type': 'application/json'},

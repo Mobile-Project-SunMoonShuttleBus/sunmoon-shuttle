@@ -132,10 +132,20 @@ class _LoginDialogState extends State<LoginDialog> {
             ),
             const SizedBox(height: 8),
             // 아이디 입력 필드 - 왼쪽에 라벨, 오른쪽에 입력 필드
-            _labeledInput(_idCtrl, '아이디', obscure: false),
+            _labeledInput(
+              _idCtrl,
+              '아이디',
+              obscure: false,
+              onChanged: (_) => setState(() {}), // 입력값 변경 시 UI 업데이트
+            ),
             const SizedBox(height: 16),
             // 비밀번호 입력 필드 - 입력값이 보이지 않도록 obscure: true 설정
-            _labeledInput(_pwCtrl, '비밀번호', obscure: true),
+            _labeledInput(
+              _pwCtrl,
+              '비밀번호',
+              obscure: true,
+              onChanged: (_) => setState(() {}), // 입력값 변경 시 UI 업데이트
+            ),
             // 에러 메시지가 있을 때만 표시 (provider에서 관리)
             Consumer<LoginProvider>(
               builder: (context, provider, _) {
@@ -184,7 +194,12 @@ class _LoginDialogState extends State<LoginDialog> {
   }
 
   // 라벨이 있는 입력 필드 위젯 - 왼쪽에 라벨, 오른쪽에 입력 필드
-  Widget _labeledInput(TextEditingController c, String label, {bool obscure = false}) {
+  Widget _labeledInput(
+    TextEditingController c,
+    String label, {
+    bool obscure = false,
+    ValueChanged<String>? onChanged,
+  }) {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -204,6 +219,7 @@ class _LoginDialogState extends State<LoginDialog> {
           child: TextField(
             controller: c,
             obscureText: obscure, // 비밀번호 필드의 경우 true로 설정하여 입력값 숨김
+            onChanged: onChanged, // 입력값 변경 시 콜백 호출
             decoration: InputDecoration(
               filled: true,
               fillColor: Colors.white, // 흰색 배경

@@ -115,7 +115,8 @@ class RegisterProvider extends ChangeNotifier {
       notifyListeners();
       return false;
     } catch (e) {
-      _errorMessage = '회원가입 중 오류가 발생했습니다.';
+      // 예상치 못한 오류
+      _errorMessage = '회원가입 중 오류가 발생했습니다: ${e.toString()}';
       _errorCode = null;
       _isLoading = false;
       notifyListeners();

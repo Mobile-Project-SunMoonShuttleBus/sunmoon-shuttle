@@ -4,6 +4,7 @@
 /// - 갱신 중 동시 요청 대기 큐 처리
 import 'dart:async';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart';
 import '../services/auth_service.dart';
 
 class AuthInterceptor extends Interceptor {
@@ -13,6 +14,13 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    // 디버그: 요청 정보 출력
+    if (kDebugMode) {
+      print('🚀 [REQUEST] ${options.method} ${options.baseUrl}${options.path}');
+      print('   Headers: ${options.headers}');
+      print('   Data: ${options.data}');
+    }
+    
     // 모든 요청에 accessToken 자동 추가
     final token = _authService.token;
     if (token != null) {
@@ -37,6 +45,15 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
+    // 디버그: 오류 정보 출력
+    if (kDebugMode) {
+      print('❌ [ERROR] ${err.requestOptions.method} ${err.requestOptions.baseUrl}${err.requestOptions.path}');
+      print('   Type: ${err.type}');
+      print('   Message: ${err.message}');
+      print('   Response: ${err.response?.statusCode} - ${err.response?.data}');
+      print('   StackTrace: ${err.stackTrace}');
+    }
+    
     // 401 Unauthorized 에러 처리
     if (err.response?.statusCode == 401) {
       // refreshToken으로 새 accessToken 발급 시도
@@ -123,6 +140,17 @@ class AuthInterceptor extends Interceptor {
     } else {
       handler.next(err);
     }
+  }
+  
+  @override
+  void onResponse(Response response, ResponseInterceptorHandler handler) {
+    // 디버그: 응답 정보 출력
+    if (kDebugMode) {
+      print('✅ [RESPONSE] ${response.requestOptions.method} ${response.requestOptions.baseUrl}${response.requestOptions.path}');
+      print('   Status: ${response.statusCode}');
+      print('   Data: ${response.data}');
+    }
+    handler.next(response);
   }
 }
 

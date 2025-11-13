@@ -27,7 +27,7 @@ class _RegisterDialogState extends State<RegisterDialog> {
     super.dispose();
   }
 
-  Future<void> _handleSubmit() async {
+  Future<void> _handleSubmit(BuildContext context) async {
     if (!_formKey.currentState!.validate()) return;
 
     final provider = context.read<RegisterProvider>();
@@ -165,7 +165,7 @@ class _RegisterDialogState extends State<RegisterDialog> {
                           _pwCtrl.text,
                           _pw2Ctrl.text,
                         ) || provider.isLoading,
-                        onPressed: _handleSubmit,
+                        onPressed: () => _handleSubmit(context),
                       );
                     },
                   ),

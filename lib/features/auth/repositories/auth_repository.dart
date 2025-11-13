@@ -23,16 +23,44 @@ class AuthRepository {
       );
       return res;
     } on DioException catch (e) {
-      final errorData = e.response?.data;
-      if (errorData is Map) {
-        final error = errorData['error']?.toString() ?? '';
-        final message = errorData['message']?.toString() ?? '회원가입 실패';
-        throw RegisterException(message: message, error: error);
+      // 네트워크 오류 또는 서버 응답 오류
+      if (e.response != null) {
+        // 서버에서 응답을 받았지만 오류 상태 코드
+        final errorData = e.response?.data;
+        if (errorData is Map) {
+          final error = errorData['error']?.toString() ?? '';
+          final message = errorData['message']?.toString() ?? '회원가입 실패';
+          throw RegisterException(message: message, error: error);
+        }
+        throw RegisterException(
+          message: '서버 오류가 발생했습니다. (${e.response?.statusCode})',
+          error: 'SERVER_ERROR',
+        );
+      } else if (e.type == DioExceptionType.connectionTimeout ||
+          e.type == DioExceptionType.receiveTimeout) {
+        throw RegisterException(
+          message: '서버 연결 시간이 초과되었습니다.',
+          error: 'TIMEOUT',
+        );
+      } else if (e.type == DioExceptionType.connectionError) {
+        throw RegisterException(
+          message: '서버에 연결할 수 없습니다. 서버가 실행 중인지 확인해주세요.',
+          error: 'CONNECTION_ERROR',
+        );
+      } else {
+        throw RegisterException(
+          message: '네트워크 오류가 발생했습니다: ${e.message}',
+          error: 'NETWORK_ERROR',
+        );
       }
-      throw RegisterException(message: '회원가입 중 오류가 발생했습니다.');
+    } on ArgumentError catch (e) {
+      throw RegisterException(message: e.message ?? '입력값이 유효하지 않습니다.', error: 'VALIDATION_ERROR');
     } catch (e) {
       if (e is RegisterException) rethrow;
-      throw RegisterException(message: '회원가입 중 오류가 발생했습니다.');
+      throw RegisterException(
+        message: '회원가입 중 오류가 발생했습니다: ${e.toString()}',
+        error: 'UNKNOWN_ERROR',
+      );
     }
   }
 
