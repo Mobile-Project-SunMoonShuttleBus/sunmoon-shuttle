@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../repositories/auth_repository.dart';
 import '../models/login_response_model.dart';
 import '../../../services/auth_service.dart';
+import '../../../api/auth_api.dart';
 
 class AuthProvider extends ChangeNotifier {
   final AuthRepository _authRepository = AuthRepository.I;
@@ -89,11 +90,26 @@ class AuthProvider extends ChangeNotifier {
   }
 
   /// 로그아웃
+  /// 서버 토큰 무효화 + 로컬 삭제
+  /// 오프라인 상태에서도 로컬 토큰은 즉시 삭제
   Future<void> logout() async {
-    await _authService.clearTokens();
-    _isAuthenticated = false;
-    _errorMessage = null;
-    notifyListeners();
+    try {
+      // 서버에 로그아웃 요청 (토큰 무효화)
+      // POST /api/auth/logout
+      await AuthApi.I.logout();
+    } catch (e) {
+      // 오프라인 상태 또는 서버 오류 시에도 로컬 토큰은 삭제
+      // 온라인 복귀 시 서버 무효화 재시도는 옵션이므로 생략
+      if (kDebugMode) {
+        print('로그아웃 서버 요청 실패 (오프라인 가능): $e');
+      }
+    } finally {
+      // 서버 요청 성공/실패와 관계없이 로컬 토큰은 항상 삭제
+      await _authService.clearTokens();
+      _isAuthenticated = false;
+      _errorMessage = null;
+      notifyListeners();
+    }
   }
 
   /// 에러 초기화

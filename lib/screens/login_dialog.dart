@@ -12,7 +12,9 @@ import '../features/auth/providers/auth_provider.dart';
 import '../features/auth/services/profile_storage_service.dart';
 
 class LoginDialog extends StatefulWidget {
-  const LoginDialog({super.key});
+  final BuildContext? rootContext;
+  
+  const LoginDialog({super.key, this.rootContext});
 
   @override
   State<LoginDialog> createState() => _LoginDialogState();
@@ -49,13 +51,13 @@ class _LoginDialogState extends State<LoginDialog> {
   }
 
   // 로그인 요청 처리 메서드
-  Future<void> _submit() async {
+  // LoginProvider와 BuildContext를 파라미터로 받아서 사용
+  Future<void> _submit(BuildContext context, LoginProvider loginProvider) async {
     if (!_isFormValid()) return;
 
-    final provider = context.read<LoginProvider>();
-    if (provider.isLoading) return; // 중복 클릭 방지
+    if (loginProvider.isLoading) return; // 중복 클릭 방지
 
-    final success = await provider.login(
+    final success = await loginProvider.login(
       userId: _idCtrl.text.trim(),
       password: _pwCtrl.text,
     );
@@ -64,13 +66,25 @@ class _LoginDialogState extends State<LoginDialog> {
 
     if (success) {
       // 로그인 성공 - AuthProvider 인증 상태 업데이트
-      final authProvider = context.read<AuthProvider>();
-      authProvider.setAuthenticated(true);
+      // 원래 위젯 트리의 context를 사용하여 AuthProvider에 접근
+      final rootCtx = widget.rootContext ?? context;
+      if (rootCtx.mounted) {
+        try {
+          final authProvider = rootCtx.read<AuthProvider>();
+          authProvider.setAuthenticated(true);
+        } catch (e) {
+          // AuthProvider를 찾을 수 없는 경우, context를 통해 접근 시도
+          if (context.mounted) {
+            final authProvider = context.read<AuthProvider>();
+            authProvider.setAuthenticated(true);
+          }
+        }
+      }
       // 다이얼로그를 닫고 true 반환
       Navigator.of(context).pop(true);
     } else {
       // 로그인 실패 - 에러 메시지는 provider에서 관리하므로 여기서는 스낵바로 표시
-      final errorMsg = provider.errorMessage ?? '로그인 실패';
+      final errorMsg = loginProvider.errorMessage ?? '로그인 실패';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(errorMsg),
@@ -102,13 +116,15 @@ class _LoginDialogState extends State<LoginDialog> {
 
   @override
   Widget build(BuildContext context) {
-    // Provider로 감싸서 LoginProvider 사용
+    // Dialog는 새로운 위젯 트리를 만들기 때문에, LoginProvider를 내부에서 제공해야 함
     return ChangeNotifierProvider(
       create: (_) => LoginProvider(),
-      child: Dialog(
-      backgroundColor: Colors.transparent, // 배경을 투명하게 설정하여 Container의 회색 배경이 보이도록 함
-      insetPadding: const EdgeInsets.symmetric(horizontal: 24), // 좌우 여백 설정
-      child: Container(
+      builder: (context, child) {
+        // builder를 사용하여 Provider의 context를 명확히 전달
+        return Dialog(
+          backgroundColor: Colors.transparent, // 배경을 투명하게 설정하여 Container의 회색 배경이 보이도록 함
+          insetPadding: const EdgeInsets.symmetric(horizontal: 24), // 좌우 여백 설정
+          child: Container(
         // 회색 배경의 둥근 모서리 컨테이너로 모달 디자인 구현
         decoration: BoxDecoration(
           color: Colors.grey[200],
@@ -170,7 +186,7 @@ class _LoginDialogState extends State<LoginDialog> {
                 return _primaryButton(
                   text: provider.isLoading ? '처리 중...' : '로그인',
                   disabled: !_isFormValid() || provider.isLoading, // 입력값이 유효하지 않거나 로딩 중일 때 비활성화
-                  onPressed: _submit,
+                  onPressed: () => _submit(context, provider), // Consumer의 context와 provider를 전달
                 );
               },
             ),
@@ -189,7 +205,8 @@ class _LoginDialogState extends State<LoginDialog> {
           ],
         ),
       ),
-      ),
+        );
+      },
     );
   }
 

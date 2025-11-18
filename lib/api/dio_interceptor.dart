@@ -2,24 +2,33 @@
 /// - 모든 요청에 accessToken 자동 추가
 /// - 401 에러 발생 시 refreshToken으로 자동 갱신
 /// - 갱신 중 동시 요청 대기 큐 처리
+/// - 토큰 갱신 실패 시 로그인 화면으로 리다이렉트
 import 'dart:async';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
+import '../core/utils/app_logger.dart';
+import '../screens/login_dialog.dart';
 
 class AuthInterceptor extends Interceptor {
   final AuthService _authService = AuthService.I;
   bool _isRefreshing = false;
   final List<_PendingRequest> _pendingRequests = [];
+  BuildContext? _rootContext;
+  
+  /// 루트 컨텍스트 설정 (로그인 화면 리다이렉트용)
+  void setRootContext(BuildContext? context) {
+    _rootContext = context;
+  }
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    // 디버그: 요청 정보 출력
-    if (kDebugMode) {
-      print('🚀 [REQUEST] ${options.method} ${options.baseUrl}${options.path}');
-      print('   Headers: ${options.headers}');
-      print('   Data: ${options.data}');
-    }
+    // 요청 로깅
+    AppLogger.debug(
+      'AuthInterceptor',
+      '${options.method} ${options.baseUrl}${options.path}',
+    );
     
     // 모든 요청에 accessToken 자동 추가
     final token = _authService.token;
@@ -45,14 +54,12 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
-    // 디버그: 오류 정보 출력
-    if (kDebugMode) {
-      print('❌ [ERROR] ${err.requestOptions.method} ${err.requestOptions.baseUrl}${err.requestOptions.path}');
-      print('   Type: ${err.type}');
-      print('   Message: ${err.message}');
-      print('   Response: ${err.response?.statusCode} - ${err.response?.data}');
-      print('   StackTrace: ${err.stackTrace}');
-    }
+    // 에러 로깅
+    AppLogger.error(
+      'AuthInterceptor',
+      '${err.requestOptions.method} ${err.requestOptions.baseUrl}${err.requestOptions.path} - ${err.message}',
+      err.stackTrace,
+    );
     
     // 401 Unauthorized 에러 처리
     if (err.response?.statusCode == 401) {
@@ -61,7 +68,8 @@ class AuthInterceptor extends Interceptor {
       
       if (refreshToken == null) {
         // refreshToken이 없으면 로그인 화면으로 이동
-        _authService.clearTokens();
+        await _authService.clearTokens();
+        _redirectToLogin();
         handler.reject(err);
         return;
       }
@@ -128,11 +136,14 @@ class AuthInterceptor extends Interceptor {
         } else {
           // 토큰 갱신 실패 - 로그인 화면으로 이동
           await _authService.clearTokens();
+          _redirectToLogin();
           handler.reject(err);
         }
       } catch (e) {
         // 토큰 갱신 실패 - 로그인 화면으로 이동
+        AppLogger.error('AuthInterceptor', '토큰 갱신 실패: $e', e is Error ? e.stackTrace : null);
         await _authService.clearTokens();
+        _redirectToLogin();
         handler.reject(err);
       } finally {
         _isRefreshing = false;
@@ -144,13 +155,31 @@ class AuthInterceptor extends Interceptor {
   
   @override
   void onResponse(Response response, ResponseInterceptorHandler handler) {
-    // 디버그: 응답 정보 출력
-    if (kDebugMode) {
-      print('✅ [RESPONSE] ${response.requestOptions.method} ${response.requestOptions.baseUrl}${response.requestOptions.path}');
-      print('   Status: ${response.statusCode}');
-      print('   Data: ${response.data}');
-    }
+    // 응답 로깅
+    AppLogger.debug(
+      'AuthInterceptor',
+      '${response.requestOptions.method} ${response.requestOptions.baseUrl}${response.requestOptions.path} - ${response.statusCode}',
+    );
     handler.next(response);
+  }
+
+  /// 로그인 화면으로 리다이렉트
+  void _redirectToLogin() {
+    if (_rootContext == null) {
+      AppLogger.warning('AuthInterceptor', '루트 컨텍스트가 설정되지 않아 로그인 화면으로 이동할 수 없습니다.');
+      return;
+    }
+
+    // Navigator를 사용하여 로그인 다이얼로그 표시
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (_rootContext != null && _rootContext!.mounted) {
+        showDialog(
+          context: _rootContext!,
+          barrierDismissible: false,
+          builder: (context) => LoginDialog(rootContext: _rootContext),
+        );
+      }
+    });
   }
 }
 
