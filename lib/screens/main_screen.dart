@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'settings_screen.dart';
 import '../features/portal/screens/portal_timetable_webview.dart';
+import '../features/notice/screens/notice_list_screen.dart';
 import '../features/settings/providers/settings_provider.dart';
+import '../core/localization/app_localizations.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -54,27 +56,30 @@ class _MainScreenState extends State<MainScreen> {
 
   // 헤더: 버스 이모지 + 제목 + 별 버튼
   Widget _buildHeader() {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row(
-        children: [
-          // 버스 이모지
-          const Text(
-            '🚌',
-            style: TextStyle(fontSize: 32),
-          ),
-          const SizedBox(width: 8),
-          // 제목
-          const Expanded(
-            child: Text(
-              '선문대 셔틀버스',
-              style: TextStyle(
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
+    return Consumer<SettingsProvider>(
+      builder: (context, settingsProvider, _) {
+        final l10n = AppLocalizations(settingsProvider.isKorean);
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+          child: Row(
+            children: [
+              // 버스 이모지
+              const Text(
+                '🚌',
+                style: TextStyle(fontSize: 32),
               ),
-            ),
-          ),
+              const SizedBox(width: 8),
+              // 제목
+              Expanded(
+                child: Text(
+                  l10n.appTitle,
+                  style: const TextStyle(
+                    fontSize: 24,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
           // 별 버튼 (즐겨찾기)
           GestureDetector(
             onTap: () {
@@ -95,30 +100,49 @@ class _MainScreenState extends State<MainScreen> {
                 size: 24,
               ),
             ),
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
+      );
+      },
     );
   }
 
   // 공지사항 바
   Widget _buildAnnouncementBar() {
-    return GestureDetector(
-      onTap: () {
-        // 공지사항 클릭 시 동작 (추후 구현)
-      },
-      child: Container(
-        width: double.infinity,
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        color: Colors.grey[200],
-        child: const Text(
-          '공지사항',
-          style: TextStyle(
-            fontSize: 16,
-            color: Colors.grey,
+    return Consumer<SettingsProvider>(
+      builder: (context, settingsProvider, _) {
+        final l10n = AppLocalizations(settingsProvider.isKorean);
+        return GestureDetector(
+          onTap: () {
+            // 공지사항 클릭 시 모달 창 열기
+            showDialog(
+              context: context,
+              builder: (context) => const NoticeListScreen(),
+            );
+          },
+          child: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            color: Colors.grey[200],
+            child: Row(
+              children: [
+                const Icon(Icons.notifications, color: Colors.grey),
+                const SizedBox(width: 8),
+                Text(
+                  l10n.announcement,
+                  style: const TextStyle(
+                    fontSize: 16,
+                    color: Colors.grey,
+                  ),
+                ),
+                const Spacer(),
+                const Icon(Icons.chevron_right, color: Colors.grey),
+              ],
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 

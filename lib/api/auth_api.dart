@@ -189,4 +189,28 @@ class AuthApi {
     final resp = await _dio.patch('/api/users/me', data: body, options: opts);
     return Map<String, dynamic>.from(resp.data);
   }
+
+  /// 학교 포털 계정 저장
+  /// POST /api/auth/school/save
+  /// { "schoolId":"2025xxxx","schoolPassword":"secret" }
+  /// 응답: { "message":"SAVED" }
+  Future<Map<String, dynamic>> saveSchoolAccount({
+    required String schoolId,
+    required String schoolPassword,
+  }) async {
+    final opts = Options();
+    AuthService.I.attachAuthHeader(opts);
+    
+    final body = <String, dynamic>{
+      'schoolId': schoolId.trim(),
+      'schoolPassword': schoolPassword, // 서버에서 암호화 처리
+    };
+    
+    if (kDebugMode) {
+      print('포털 계정 저장 요청: schoolId=${body['schoolId']}');
+    }
+    
+    final resp = await _dio.post('/api/auth/school/save', data: body, options: opts);
+    return Map<String, dynamic>.from(resp.data);
+  }
 }

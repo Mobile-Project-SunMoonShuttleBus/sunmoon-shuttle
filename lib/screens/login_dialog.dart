@@ -10,6 +10,8 @@ import '../screens/register_dialog.dart';
 import '../features/auth/providers/login_provider.dart';
 import '../features/auth/providers/auth_provider.dart';
 import '../features/auth/services/profile_storage_service.dart';
+import '../features/settings/providers/settings_provider.dart';
+import '../core/localization/app_localizations.dart';
 
 class LoginDialog extends StatefulWidget {
   final BuildContext? rootContext;
@@ -84,7 +86,9 @@ class _LoginDialogState extends State<LoginDialog> {
       Navigator.of(context).pop(true);
     } else {
       // 로그인 실패 - 에러 메시지는 provider에서 관리하므로 여기서는 스낵바로 표시
-      final errorMsg = loginProvider.errorMessage ?? '로그인 실패';
+      final settingsProvider = context.read<SettingsProvider>();
+      final l10n = AppLocalizations(settingsProvider.isKorean);
+      final errorMsg = loginProvider.errorMessage ?? l10n.loginFailed;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(errorMsg),
@@ -148,19 +152,29 @@ class _LoginDialogState extends State<LoginDialog> {
             ),
             const SizedBox(height: 8),
             // 아이디 입력 필드 - 왼쪽에 라벨, 오른쪽에 입력 필드
-            _labeledInput(
-              _idCtrl,
-              '아이디',
-              obscure: false,
-              onChanged: (_) => setState(() {}), // 입력값 변경 시 UI 업데이트
+            Consumer<SettingsProvider>(
+              builder: (context, settingsProvider, _) {
+                final l10n = AppLocalizations(settingsProvider.isKorean);
+                return _labeledInput(
+                  _idCtrl,
+                  l10n.userId,
+                  obscure: false,
+                  onChanged: (_) => setState(() {}), // 입력값 변경 시 UI 업데이트
+                );
+              },
             ),
             const SizedBox(height: 16),
             // 비밀번호 입력 필드 - 입력값이 보이지 않도록 obscure: true 설정
-            _labeledInput(
-              _pwCtrl,
-              '비밀번호',
-              obscure: true,
-              onChanged: (_) => setState(() {}), // 입력값 변경 시 UI 업데이트
+            Consumer<SettingsProvider>(
+              builder: (context, settingsProvider, _) {
+                final l10n = AppLocalizations(settingsProvider.isKorean);
+                return _labeledInput(
+                  _pwCtrl,
+                  l10n.password,
+                  obscure: true,
+                  onChanged: (_) => setState(() {}), // 입력값 변경 시 UI 업데이트
+                );
+              },
             ),
             // 에러 메시지가 있을 때만 표시 (provider에서 관리)
             Consumer<LoginProvider>(
@@ -181,10 +195,11 @@ class _LoginDialogState extends State<LoginDialog> {
             ),
             const SizedBox(height: 20),
             // 로그인 버튼 (파란색) - 메인 액션 버튼
-            Consumer<LoginProvider>(
-              builder: (context, provider, _) {
+            Consumer2<LoginProvider, SettingsProvider>(
+              builder: (context, provider, settingsProvider, _) {
+                final l10n = AppLocalizations(settingsProvider.isKorean);
                 return _primaryButton(
-                  text: provider.isLoading ? '처리 중...' : '로그인',
+                  text: provider.isLoading ? l10n.processing : l10n.login,
                   disabled: !_isFormValid() || provider.isLoading, // 입력값이 유효하지 않거나 로딩 중일 때 비활성화
                   onPressed: () => _submit(context, provider), // Consumer의 context와 provider를 전달
                 );
@@ -192,15 +207,25 @@ class _LoginDialogState extends State<LoginDialog> {
             ),
             const SizedBox(height: 12),
             // 회원가입 버튼 (흰색 배경, 파란색 테두리) - OutlinedButton 스타일
-            _outlinedButton(
-              text: '회원가입',
-              onPressed: _openRegister,
+            Consumer<SettingsProvider>(
+              builder: (context, settingsProvider, _) {
+                final l10n = AppLocalizations(settingsProvider.isKorean);
+                return _outlinedButton(
+                  text: l10n.register,
+                  onPressed: _openRegister,
+                );
+              },
             ),
             const SizedBox(height: 12),
             // 취소 버튼 (회색 배경) - 보조 액션 버튼
-            _grayButton(
-              text: '취소',
-              onPressed: () => Navigator.of(context).pop(false),
+            Consumer<SettingsProvider>(
+              builder: (context, settingsProvider, _) {
+                final l10n = AppLocalizations(settingsProvider.isKorean);
+                return _grayButton(
+                  text: l10n.cancel,
+                  onPressed: () => Navigator.of(context).pop(false),
+                );
+              },
             ),
           ],
         ),

@@ -39,6 +39,12 @@
 
   <title>sunmoon_shuttle</title>
   <link rel="manifest" href="manifest.json">
+  <script>
+    // Flutter 웹에서 platformViewRegistry 접근을 위한 스크립트
+    window.addEventListener('load', function(ev) {
+      // Flutter 엔진이 로드된 후 platformViewRegistry가 사용 가능해집니다
+    });
+  </script>
 </head>
 <body>
   <script src="flutter_bootstrap.js" async></script>

@@ -107,6 +107,32 @@ class AuthRepository {
       throw RefreshTokenException(message: '토큰 갱신 중 오류가 발생했습니다.');
     }
   }
+
+  /// 학교 포털 계정 저장
+  /// POST /api/auth/school/save
+  /// 성공 시 { "message":"SAVED" } 반환, 실패 시 예외 발생
+  Future<Map<String, dynamic>> saveSchoolAccount({
+    required String schoolId,
+    required String schoolPassword,
+  }) async {
+    try {
+      final res = await AuthApi.I.saveSchoolAccount(
+        schoolId: schoolId,
+        schoolPassword: schoolPassword,
+      );
+      return res;
+    } on DioException catch (e) {
+      final errorData = e.response?.data;
+      if (errorData is Map) {
+        final message = errorData['message']?.toString() ?? '포털 계정 저장 실패';
+        throw SchoolAccountException(message: message);
+      }
+      throw SchoolAccountException(message: '포털 계정 저장 중 오류가 발생했습니다.');
+    } catch (e) {
+      if (e is SchoolAccountException) rethrow;
+      throw SchoolAccountException(message: '포털 계정 저장 중 오류가 발생했습니다.');
+    }
+  }
 }
 
 class RegisterException implements Exception {
@@ -132,6 +158,15 @@ class RefreshTokenException implements Exception {
   final String message;
 
   RefreshTokenException({required this.message});
+
+  @override
+  String toString() => message;
+}
+
+class SchoolAccountException implements Exception {
+  final String message;
+
+  SchoolAccountException({required this.message});
 
   @override
   String toString() => message;

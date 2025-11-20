@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../features/settings/providers/settings_provider.dart';
 import '../features/auth/providers/auth_provider.dart';
+import '../core/localization/app_localizations.dart';
+import '../features/auth/screens/portal_link_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -54,35 +56,38 @@ class _SettingsScreenState extends State<SettingsScreen> {
 
   // 헤더: 톱니바퀴 아이콘 + 제목 + 닫기 버튼
   Widget _buildHeader(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-      decoration: BoxDecoration(
-        color: Colors.grey[100],
-        borderRadius: const BorderRadius.only(
-          topLeft: Radius.circular(12),
-          topRight: Radius.circular(12),
-        ),
-      ),
-      child: Row(
-        children: [
-          // 톱니바퀴 아이콘
-          const Icon(
-            Icons.settings,
-            color: Color(0xFF1890FF),
-            size: 24,
-          ),
-          const SizedBox(width: 8),
-          // 제목
-          const Expanded(
-            child: Text(
-              '설정 페이지',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-                color: Colors.black,
-              ),
+    return Consumer<SettingsProvider>(
+      builder: (context, settingsProvider, _) {
+        final l10n = AppLocalizations(settingsProvider.isKorean);
+        return Container(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+          decoration: BoxDecoration(
+            color: Colors.grey[100],
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(12),
+              topRight: Radius.circular(12),
             ),
           ),
+          child: Row(
+            children: [
+              // 톱니바퀴 아이콘
+              const Icon(
+                Icons.settings,
+                color: Color(0xFF1890FF),
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              // 제목
+              Expanded(
+                child: Text(
+                  l10n.settingsTitle,
+                  style: const TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
           // 닫기 버튼
           GestureDetector(
             onTap: () => Navigator.of(context).pop(),
@@ -91,9 +96,11 @@ class _SettingsScreenState extends State<SettingsScreen> {
               color: Color(0xFF1890FF),
               size: 24,
             ),
-          ),
-        ],
-      ),
+            ),
+          ],
+        ),
+      );
+      },
     );
   }
 
@@ -101,6 +108,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
   Widget _buildSettingsContent(BuildContext context) {
     return Consumer<SettingsProvider>(
       builder: (context, settingsProvider, _) {
+        final l10n = AppLocalizations(settingsProvider.isKorean);
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
           child: Column(
@@ -109,8 +117,8 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // 혼잡도 애니메이션 설정
               _buildSettingItem(
                 context,
-                label: '혼잡도 애니메이션',
-                value: settingsProvider.crowdAnimation ? 'ON' : 'OFF',
+                label: l10n.crowdAnimation,
+                value: settingsProvider.crowdAnimation ? l10n.on : l10n.off,
                 isEnabled: settingsProvider.crowdAnimation,
                 onChanged: (value) async {
                   final success = await settingsProvider.updateCrowdAnimation(value);
@@ -118,7 +126,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                          value ? '혼잡도 애니메이션이 켜졌습니다.' : '혼잡도 애니메이션이 꺼졌습니다.',
+                          value ? l10n.crowdAnimationOn : l10n.crowdAnimationOff,
                         ),
                         backgroundColor: Colors.green,
                         duration: const Duration(seconds: 1),
@@ -140,16 +148,19 @@ class _SettingsScreenState extends State<SettingsScreen> {
               // 언어 설정
               _buildSettingItem(
                 context,
-                label: '언어',
-                value: settingsProvider.isKorean ? '한/영' : '영/한',
-                isEnabled: settingsProvider.isKorean,
+                label: l10n.language,
+                value: settingsProvider.isKorean ? l10n.languageKo : l10n.languageEn,
+                isEnabled: settingsProvider.isKorean, // 활성화(ON) = 한국어, 비활성화(OFF) = 영어
                 onChanged: (value) async {
+                  // value가 true면 한국어, false면 영어
                   final success = await settingsProvider.updateLanguage(value);
                   if (success && context.mounted) {
+                    // 언어 변경 후 새로운 언어로 메시지 표시
+                    final newL10n = AppLocalizations(value);
                     ScaffoldMessenger.of(context).showSnackBar(
                       SnackBar(
                         content: Text(
-                          value ? '언어가 한국어로 변경되었습니다.' : 'Language changed to English.',
+                          value ? newL10n.languageChangedKo : newL10n.languageChangedEn,
                         ),
                         backgroundColor: Colors.green,
                         duration: const Duration(seconds: 1),
@@ -167,6 +178,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   }
                 },
               ),
+              const SizedBox(height: 20),
+              // 포털 계정 연동 버튼
+              _buildPortalLinkButton(context),
               const Spacer(),
               // 로그아웃 버튼
               _buildLogoutButton(context),
@@ -225,10 +239,42 @@ class _SettingsScreenState extends State<SettingsScreen> {
     );
   }
 
+  // 포털 계정 연동 버튼
+  Widget _buildPortalLinkButton(BuildContext context) {
+    return Consumer<SettingsProvider>(
+      builder: (context, settingsProvider, _) {
+        final l10n = AppLocalizations(settingsProvider.isKorean);
+        return SizedBox(
+          width: double.infinity,
+          child: OutlinedButton.icon(
+            onPressed: () {
+              Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (context) => const PortalLinkScreen(),
+                ),
+              );
+            },
+            icon: const Icon(Icons.link),
+            label: Text(l10n.portalLinkTitle),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: const Color(0xFF1890FF),
+              side: const BorderSide(color: Color(0xFF1890FF), width: 1),
+              padding: const EdgeInsets.symmetric(vertical: 14),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
   // 로그아웃 버튼
   Widget _buildLogoutButton(BuildContext context) {
-    return Consumer<AuthProvider>(
-      builder: (context, authProvider, _) {
+    return Consumer2<AuthProvider, SettingsProvider>(
+      builder: (context, authProvider, settingsProvider, _) {
+        final l10n = AppLocalizations(settingsProvider.isKorean);
         return SizedBox(
           width: double.infinity,
           child: ElevatedButton(
@@ -237,16 +283,16 @@ class _SettingsScreenState extends State<SettingsScreen> {
               final confirm = await showDialog<bool>(
                 context: context,
                 builder: (context) => AlertDialog(
-                  title: const Text('로그아웃'),
-                  content: const Text('정말 로그아웃 하시겠습니까?'),
+                  title: Text(l10n.logout),
+                  content: Text(l10n.logoutConfirm),
                   actions: [
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(false),
-                      child: const Text('취소'),
+                      child: Text(l10n.cancel),
                     ),
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(true),
-                      child: const Text('로그아웃'),
+                      child: Text(l10n.logout),
                     ),
                   ],
                 ),
@@ -269,9 +315,9 @@ class _SettingsScreenState extends State<SettingsScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
             ),
-            child: const Text(
-              '로그아웃',
-              style: TextStyle(
+            child: Text(
+              l10n.logout,
+              style: const TextStyle(
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),

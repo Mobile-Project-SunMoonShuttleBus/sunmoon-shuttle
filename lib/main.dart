@@ -10,6 +10,7 @@ import 'features/auth/providers/auth_provider.dart';
 import 'features/settings/providers/settings_provider.dart';
 import 'core/network/dio_client.dart';
 import 'core/cache/cache_manager.dart';
+import 'core/localization/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -59,14 +60,22 @@ class MyApp extends StatelessWidget {
         ChangeNotifierProvider(create: (_) => AuthProvider()),
         ChangeNotifierProvider(create: (_) => SettingsProvider()),
       ],
-      child: MaterialApp(
-        title: 'Sunmoon Shuttle',
-        theme: ThemeData(
-          useMaterial3: true,
-          // 한글 폰트 설정 (아이콘에는 영향 없음)
-          fontFamily: 'Noto Sans KR',
-        ),
-        home: const HomePage(),
+      child: Consumer<SettingsProvider>(
+        builder: (context, settingsProvider, _) {
+          final isKorean = settingsProvider.isKorean;
+          final locale = isKorean ? const Locale('ko', 'KR') : const Locale('en', 'US');
+          
+          return MaterialApp(
+            title: 'Sunmoon Shuttle',
+            locale: locale,
+            theme: ThemeData(
+              useMaterial3: true,
+              // 한글 폰트 설정 (아이콘에는 영향 없음)
+              fontFamily: 'Noto Sans KR',
+            ),
+            home: const HomePage(),
+          );
+        },
       ),
     );
   }
