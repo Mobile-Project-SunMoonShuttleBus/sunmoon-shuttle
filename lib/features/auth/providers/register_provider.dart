@@ -95,19 +95,21 @@ class RegisterProvider extends ChangeNotifier {
         passwordConfirm: passwordConfirm,
       );
 
-      // 성공 시 userId 로컬 저장 (자동채움용)
-      if (result['message']?.toString().contains('완료') == true) {
+      final message = result['message']?.toString().toUpperCase() ?? '';
+      final success = result['success'] == true || message.contains('REGISTER');
+
+      if (success) {
         await _profileStorage.saveUserId(userId.trim());
         _isLoading = false;
         notifyListeners();
         return true;
-      } else {
-        _errorMessage = result['message']?.toString() ?? '회원가입 실패';
-        _errorCode = result['error']?.toString();
-        _isLoading = false;
-        notifyListeners();
-        return false;
       }
+
+      _errorMessage = result['message']?.toString() ?? '회원가입 실패';
+      _errorCode = result['error']?.toString();
+      _isLoading = false;
+      notifyListeners();
+      return false;
     } on RegisterException catch (e) {
       _errorMessage = e.message;
       _errorCode = e.error;
