@@ -17,6 +17,7 @@ dependencies:
   url_launcher: ^6.3.1
   flutter_markdown: ^0.6.18
   html: ^0.15.4
+  intl: ^0.19.0
 
 dev_dependencies:
   lints: ^6.0.0

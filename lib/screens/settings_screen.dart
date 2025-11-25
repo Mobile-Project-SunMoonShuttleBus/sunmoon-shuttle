@@ -3,7 +3,6 @@ import 'package:provider/provider.dart';
 import '../features/settings/providers/settings_provider.dart';
 import '../features/auth/providers/auth_provider.dart';
 import '../core/localization/app_localizations.dart';
-import '../features/auth/screens/portal_link_screen.dart';
 
 class SettingsScreen extends StatefulWidget {
   const SettingsScreen({super.key});
@@ -114,37 +113,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // 혼잡도 애니메이션 설정
-              _buildSettingItem(
-                context,
-                label: l10n.crowdAnimation,
-                value: settingsProvider.crowdAnimation ? l10n.on : l10n.off,
-                isEnabled: settingsProvider.crowdAnimation,
-                onChanged: (value) async {
-                  final success = await settingsProvider.updateCrowdAnimation(value);
-                  if (success && context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(
-                          value ? l10n.crowdAnimationOn : l10n.crowdAnimationOff,
-                        ),
-                        backgroundColor: Colors.green,
-                        duration: const Duration(seconds: 1),
-                      ),
-                    );
-                  } else if (!success && context.mounted && settingsProvider.errorMessage != null) {
-                    // 에러 메시지가 있는 경우에만 표시
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(
-                        content: Text(settingsProvider.errorMessage!),
-                        backgroundColor: Colors.red,
-                        duration: const Duration(seconds: 3),
-                      ),
-                    );
-                  }
-                },
-              ),
-              const SizedBox(height: 20),
               // 언어 설정
               _buildSettingItem(
                 context,
@@ -178,9 +146,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
                   }
                 },
               ),
-              const SizedBox(height: 20),
-              // 포털 계정 연동 버튼
-              _buildPortalLinkButton(context),
               const Spacer(),
               // 로그아웃 버튼
               _buildLogoutButton(context),
@@ -236,37 +201,6 @@ class _SettingsScreenState extends State<SettingsScreen> {
           ),
         ],
       ),
-    );
-  }
-
-  // 포털 계정 연동 버튼
-  Widget _buildPortalLinkButton(BuildContext context) {
-    return Consumer<SettingsProvider>(
-      builder: (context, settingsProvider, _) {
-        final l10n = AppLocalizations(settingsProvider.isKorean);
-        return SizedBox(
-          width: double.infinity,
-          child: OutlinedButton.icon(
-            onPressed: () {
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => const PortalLinkScreen(),
-                ),
-              );
-            },
-            icon: const Icon(Icons.link),
-            label: Text(l10n.portalLinkTitle),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: const Color(0xFF1890FF),
-              side: const BorderSide(color: Color(0xFF1890FF), width: 1),
-              padding: const EdgeInsets.symmetric(vertical: 14),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-            ),
-          ),
-        );
-      },
     );
   }
 

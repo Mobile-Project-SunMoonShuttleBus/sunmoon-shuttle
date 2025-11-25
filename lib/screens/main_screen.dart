@@ -1,10 +1,15 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:provider/provider.dart';
 import 'settings_screen.dart';
 import '../features/portal/screens/portal_timetable_webview.dart';
+import '../features/portal/screens/timetable_screen.dart';
 import '../features/notice/screens/notice_list_screen.dart';
 import '../features/settings/providers/settings_provider.dart';
 import '../core/localization/app_localizations.dart';
+import 'notice/shuttle_notice_list_screen.dart';
+import '../api/notice_api.dart';
+import 'portal_login_screen.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -23,7 +28,49 @@ class _MainScreenState extends State<MainScreen> {
     // 앱 시작 시 설정 로드 (토큰 기반 me 조회 시 pref 반영)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<SettingsProvider>().loadSettings();
+      // 앱 시작 시 공지 동기화 (백그라운드에서 실행)
+      _syncNoticesOnStartup();
     });
+  }
+
+  /// 앱 시작 시 공지 동기화 (에러 발생해도 앱은 정상 동작)
+  Future<void> _syncNoticesOnStartup() async {
+    try {
+      if (kDebugMode) {
+        print('🔵 앱 시작 시 공지 동기화 시작');
+      }
+      await NoticeApi.I.syncShuttleNotices();
+      if (kDebugMode) {
+        print('✅ 앱 시작 시 공지 동기화 완료');
+      }
+    } catch (e) {
+      // 동기화 실패해도 앱은 정상 동작하도록 에러만 로깅
+      if (kDebugMode) {
+        print('⚠️ 앱 시작 시 공지 동기화 실패: $e');
+      }
+      // 사용자에게는 조용히 실패 (필요시 스낵바로 알림 가능)
+    }
+  }
+
+  /// 학기 시간표 버튼 클릭 시 WebView로 포털 로그인 페이지 표시
+  Future<void> _navigateToTimetable(BuildContext context) async {
+    // 바로 WebView로 포털 로그인 페이지 표시
+    if (mounted) {
+      final loginResult = await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => const PortalLoginScreen(),
+        ),
+      );
+      
+      // 로그인 성공 시 시간표 화면으로 이동 (로그인 성공 메시지 표시)
+      if (loginResult == true && mounted) {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => const TimetableScreen(showLoginSuccess: true),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -39,11 +86,18 @@ class _MainScreenState extends State<MainScreen> {
               _buildHeader(),
               // 공지사항 바
               _buildAnnouncementBar(),
-              // 메인 콘텐츠 영역 (추후 버튼 등 추가 가능)
+              // 메인 콘텐츠 영역
               Expanded(
                 child: Container(
                   color: Colors.white,
-                  // 여기에 버튼 등 추가할 수 있습니다
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.start,
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      // 메인 콘텐츠는 여기에 추가 가능
+                    ],
+                  ),
                 ),
               ),
             ],
@@ -115,10 +169,19 @@ class _MainScreenState extends State<MainScreen> {
         final l10n = AppLocalizations(settingsProvider.isKorean);
         return GestureDetector(
           onTap: () {
-            // 공지사항 클릭 시 모달 창 열기
+            // 공지사항 클릭 시 모달창으로 셔틀 공지 표시
             showDialog(
               context: context,
-              builder: (context) => const NoticeListScreen(),
+              builder: (context) => Dialog(
+                insetPadding: EdgeInsets.zero,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(
+                    maxWidth: 600,
+                    maxHeight: double.infinity,
+                  ),
+                  child: const ShuttleNoticeListScreen(),
+                ),
+              ),
             );
           },
           child: Container(
@@ -127,10 +190,10 @@ class _MainScreenState extends State<MainScreen> {
             color: Colors.grey[200],
             child: Row(
               children: [
-                const Icon(Icons.notifications, color: Colors.grey),
+                const Icon(Icons.announcement_outlined, color: Colors.grey),
                 const SizedBox(width: 8),
                 Text(
-                  l10n.announcement,
+                  '셔틀 공지',
                   style: const TextStyle(
                     fontSize: 16,
                     color: Colors.grey,
@@ -187,21 +250,17 @@ class _MainScreenState extends State<MainScreen> {
                   // 일정 화면으로 이동 (추후 구현)
                 },
               ),
-              // 일정 + 졸업모 아이콘 (학기 시간표 - 포털 로그인)
+              // 일정 + 졸업모 아이콘 (학기 시간표 - API 기반)
               _buildNavItem(
                 icon: Icons.calendar_today,
                 overlayIcon: Icons.school,
                 isSelected: _selectedIndex == 2,
-                onTap: () {
+                onTap: () async {
                   setState(() {
                     _selectedIndex = 2;
                   });
-                  // 포털 시간표 WebView로 이동 (쿠키 확인 후 분기)
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (context) => const PortalTimetableWebView(),
-                    ),
-                  );
+                  // 포털 계정 정보 확인 후 분기
+                  await _navigateToTimetable(context);
                 },
               ),
               // 설정 아이콘
@@ -268,4 +327,5 @@ class _MainScreenState extends State<MainScreen> {
     );
   }
 }
+
 

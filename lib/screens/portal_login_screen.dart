@@ -1,15 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:flutter/widgets.dart' show HtmlElementView;
-import 'package:webview_flutter/webview_flutter.dart';
-import '../features/portal/services/portal_cookie_service.dart';
+import 'package:sunmoon_shuttle/features/portal/screens/portal_timetable_webview.dart';
 
-// 웹 전용 import
-import 'dart:html' as html;
-import 'dart:ui' as ui;
-
-/// 포털 로그인 화면
-/// WebView로 선문대학교 포털 로그인 페이지를 표시
+/// 학기 시간표 화면 혹은 포털 연동용 진입 화면
+/// - 버튼 눌러서 WebView(PortalTimetableWebViewScreen)로 이동
+/// - 로그인 성공 시 WebView 에서 Navigator.pop(true) 를 보내고
+///   여기서 받아서 "포털 로그인 성공" 메시지 + 시간표 API 호출
 class PortalLoginScreen extends StatefulWidget {
   const PortalLoginScreen({super.key});
 
@@ -18,128 +13,146 @@ class PortalLoginScreen extends StatefulWidget {
 }
 
 class _PortalLoginScreenState extends State<PortalLoginScreen> {
-  WebViewController? _controller;
-  bool _isLoading = true;
-  String? _iframeViewId;
+  bool _isLoadingTimetable = false;
+  Map<String, dynamic>? _timetable; // TODO: 실제 API 응답 타입에 맞게 변경
 
-  @override
-  void initState() {
-    super.initState();
-    if (kIsWeb) {
-      _initializeIframe();
+  Future<void> _openPortalWebView() async {
+    // WebView 화면으로 이동, 로그인 성공 시 true 반환 기대
+    final result = await Navigator.push<bool>(
+      context,
+      MaterialPageRoute(
+        builder: (_) => const PortalTimetableWebViewScreen(),
+      ),
+    );
+
+    if (result == true) {
+      // 포털 로그인 성공
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('포털 로그인 성공! 시간표를 불러옵니다.')),
+      );
+
+      // 여기서 시간표 크롤링 API 호출
+      await _fetchTimetableFromServer();
     } else {
-      _initializeWebView();
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('포털 로그인에 실패했거나 취소되었습니다.')),
+      );
     }
   }
 
-  void _initializeIframe() {
-    // 웹에서는 iframe 사용
-    if (!kIsWeb) return;
-    
-    _iframeViewId = 'portal-iframe-${DateTime.now().millisecondsSinceEpoch}';
-    // ignore: avoid_web_libraries_in_flutter, undefined_prefixed_name
-    final window = ui.window as dynamic;
-    final platformViewRegistry = window.platformViewRegistry;
-    platformViewRegistry.registerViewFactory(
-      _iframeViewId!,
-      (int viewId) {
-        // ignore: avoid_web_libraries_in_flutter
-        final iframe = html.IFrameElement()
-          ..src = 'https://lily.sunmoon.ac.kr/Page2/Etc/Login.aspx'
-          ..style.border = 'none'
-          ..style.width = '100%'
-          ..style.height = '100%';
-        return iframe;
-      },
-    );
+  Future<void> _fetchTimetableFromServer() async {
     setState(() {
-      _isLoading = false;
+      _isLoadingTimetable = true;
     });
-  }
 
-  void _initializeWebView() {
-    // 모바일/데스크톱에서는 WebView 사용
-    _controller = WebViewController()
-      ..setJavaScriptMode(JavaScriptMode.unrestricted)
-      ..setNavigationDelegate(
-        NavigationDelegate(
-          onPageStarted: (String url) {
-            setState(() {
-              _isLoading = true;
-            });
-          },
-          onPageFinished: (String url) async {
-            setState(() {
-              _isLoading = false;
-            });
-            
-            // 로그인 성공 패턴 감지 (시간표 URL 또는 메인 페이지)
-            final successPatterns = ['/UA/Course', '/CourseRegisterCal', '/timetable', '/TimeTable', '/Main.aspx', 'sws.sunmoon.ac.kr'];
-            final isSuccess = successPatterns.any((pattern) => url.contains(pattern));
-            
-            if (isSuccess) {
-              // 로그인 성공 시 쿠키 저장 상태 기록
-              await PortalCookieService.I.markCookieSaved();
-              
-              if (mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('포털 로그인 성공'),
-                    backgroundColor: Colors.green,
-                    duration: Duration(seconds: 2),
-                  ),
-                );
+    try {
+      // TODO: 실제 API 호출로 교체
+      // 여기서는 네가 예시로 준 JSON 구조를 흉내낸 더미 데이터 사용
+      await Future.delayed(const Duration(seconds: 1));
+
+      setState(() {
+        _timetable = {
+          "success": true,
+          "count": 17,
+          "crawlingStatus": "completed",
+          "statusMessage": "시간표를 불러오는 중입니다. 잠시만 기다려주세요.",
+          "lastCrawledAt": "2025-11-23T09:30:00.000Z",
+          "timetable": {
+            "월": [
+              {
+                "subjectName": "모바일프로그래밍 11반",
+                "startTime": "9:30",
+                "endTime": "10:20",
+                "location": "인문 410",
+                "professor": "이정빈"
+              },
+              {
+                "subjectName": "모바일프로그래밍 11반",
+                "startTime": "10:30",
+                "endTime": "11:20",
+                "location": "인문 410",
+                "professor": "이정빈"
               }
-            }
-          },
-          onNavigationRequest: (NavigationRequest request) {
-            // 로그인 성공 패턴 감지 (리다이렉트 시)
-            final successPatterns = ['/UA/Course', '/CourseRegisterCal', '/timetable', '/TimeTable', '/Main.aspx', 'sws.sunmoon.ac.kr'];
-            final isSuccess = successPatterns.any((pattern) => request.url.contains(pattern));
-            if (isSuccess) {
-              // 로그인 성공 시 쿠키 저장 상태 기록
-              PortalCookieService.I.markCookieSaved();
-            }
-            return NavigationDecision.navigate;
-          },
-          onWebResourceError: (WebResourceError error) {
-            if (mounted) {
-              ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(
-                  content: Text('페이지 로드 오류: ${error.description}'),
-                  backgroundColor: Colors.red,
-                ),
-              );
-            }
-          },
-        ),
-      )
-      ..loadRequest(Uri.parse('https://lily.sunmoon.ac.kr/Page2/Etc/Login.aspx'));
+            ],
+            "화": [
+              {
+                "subjectName": "웹프레임워크(백엔드) 11반",
+                "startTime": "12:30",
+                "endTime": "13:20",
+                "location": "인문 410",
+                "professor": "이정빈"
+              }
+            ]
+          }
+        };
+      });
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isLoadingTimetable = false;
+        });
+      }
+    }
   }
 
   @override
   Widget build(BuildContext context) {
+    final timetable = _timetable?['timetable'] as Map<String, dynamic>?;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('선문대학교 포털 로그인'),
-        backgroundColor: const Color(0xFF1890FF),
-        foregroundColor: Colors.white,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back),
-          onPressed: () => Navigator.of(context).pop(),
-        ),
+        title: const Text('학기 시간표'),
       ),
-      body: Stack(
+      body: Column(
         children: [
-          // 웹에서는 iframe, 모바일/데스크톱에서는 WebView
-          if (kIsWeb && _iframeViewId != null)
-            // ignore: undefined_prefixed_name
-            HtmlElementView(viewType: _iframeViewId!)
-          else if (!kIsWeb && _controller != null)
-            WebViewWidget(controller: _controller!),
-          if (_isLoading)
-            const Center(
-              child: CircularProgressIndicator(),
+          const SizedBox(height: 16),
+          ElevatedButton(
+            onPressed: _openPortalWebView,
+            child: const Text('포털에서 학기 시간표 가져오기'),
+          ),
+          const SizedBox(height: 16),
+          if (_isLoadingTimetable)
+            const CircularProgressIndicator()
+          else if (timetable == null)
+            const Text('아직 불러온 시간표가 없습니다.')
+          else
+            Expanded(
+              child: ListView(
+                children: [
+                  for (final day in ['월', '화', '수', '목', '금'])
+                    if (timetable[day] != null)
+                      _buildDayCard(day, timetable[day] as List),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDayCard(String day, List list) {
+    return Card(
+      margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ListTile(
+            title: Text(
+              day,
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ),
+          for (final item in list)
+            ListTile(
+              title: Text(item['subjectName'] as String),
+              subtitle: Text(
+                '${item['startTime']} ~ ${item['endTime']} | '
+                '${item['location']} | ${item['professor']}',
+              ),
             ),
         ],
       ),

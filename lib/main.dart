@@ -68,6 +68,7 @@ class MyApp extends StatelessWidget {
           return MaterialApp(
             title: 'Sunmoon Shuttle',
             locale: locale,
+            debugShowCheckedModeBanner: false, // 디버그 배너 숨기기
             theme: ThemeData(
               useMaterial3: true,
               // 한글 폰트 설정 (아이콘에는 영향 없음)

@@ -30,7 +30,11 @@ class AuthApi {
       baseUrl: baseUrl,
       connectTimeout: const Duration(seconds: 8),
       receiveTimeout: const Duration(seconds: 8),
-      headers: {'Content-Type': 'application/json'},
+      headers: {
+        'Content-Type': 'application/json',
+        'Accept': 'application/json', // JSON만 받도록 명시
+      },
+      responseType: ResponseType.json, // JSON 응답만 받도록 명시
     ));
     // 401 처리 및 토큰 갱신 인터셉터 추가
     _dio.interceptors.add(AuthInterceptor());
@@ -169,8 +173,67 @@ class AuthApi {
   Future<Map<String, dynamic>> getMe() async {
     final opts = Options();
     AuthService.I.attachAuthHeader(opts);
-    final resp = await _dio.get('/api/users/me', options: opts);
-    return Map<String, dynamic>.from(resp.data);
+    
+    try {
+      final resp = await _dio.get('/api/users/me', options: opts);
+      
+      if (kDebugMode) {
+        print('🔵 getMe 응답 상태 코드: ${resp.statusCode}');
+        print('🔵 getMe 응답 Content-Type: ${resp.headers.value('content-type')}');
+        print('🔵 getMe 응답 데이터 타입: ${resp.data.runtimeType}');
+      }
+      
+      // 응답이 JSON인지 확인
+      if (resp.data is String) {
+        // HTML이나 다른 텍스트 응답인 경우
+        if (kDebugMode) {
+          print('⚠️ getMe 응답이 JSON이 아닙니다. 응답 타입: ${resp.data.runtimeType}');
+          final preview = resp.data.toString().substring(0, resp.data.toString().length > 200 ? 200 : resp.data.toString().length);
+          print('⚠️ 응답 미리보기: $preview...');
+          print('⚠️ 서버가 HTML을 반환했습니다. 백엔드 라우팅 설정을 확인하세요.');
+        }
+        throw DioException(
+          requestOptions: resp.requestOptions,
+          response: resp,
+          type: DioExceptionType.badResponse,
+          message: '서버가 JSON 대신 HTML을 반환했습니다. 백엔드 API 엔드포인트 설정을 확인하세요.',
+        );
+      }
+      
+      // JSON 응답인 경우
+      if (resp.data is Map) {
+        if (kDebugMode) {
+          print('✅ getMe 응답 파싱 성공');
+        }
+        return Map<String, dynamic>.from(resp.data);
+      }
+      
+      // 예상치 못한 응답 형식
+      if (kDebugMode) {
+        print('❌ getMe 예상치 못한 응답 형식: ${resp.data.runtimeType}');
+      }
+      throw DioException(
+        requestOptions: resp.requestOptions,
+        response: resp,
+        type: DioExceptionType.badResponse,
+        message: '예상치 못한 응답 형식입니다.',
+      );
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ getMe API 호출 실패: ${e.message}');
+        if (e.response != null) {
+          print('❌ 응답 상태 코드: ${e.response?.statusCode}');
+          print('❌ 응답 데이터 타입: ${e.response?.data.runtimeType}');
+          print('❌ 응답 Content-Type: ${e.response?.headers.value('content-type')}');
+        }
+      }
+      rethrow;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ getMe 예외: $e');
+      }
+      rethrow;
+    }
   }
 
   /// 사용자 설정 업데이트 (PATCH /api/me)
@@ -194,6 +257,7 @@ class AuthApi {
   /// POST /api/auth/school/save
   /// { "schoolId":"2025xxxx","schoolPassword":"secret" }
   /// 응답: { "message":"SAVED" }
+  /// 서버 DB에 영구 저장되며, 저장 후 자동으로 시간표 크롤링이 백그라운드에서 실행됩니다.
   Future<Map<String, dynamic>> saveSchoolAccount({
     required String schoolId,
     required String schoolPassword,
@@ -208,9 +272,30 @@ class AuthApi {
     
     if (kDebugMode) {
       print('포털 계정 저장 요청: schoolId=${body['schoolId']}');
+      print('서버 DB에 영구 저장됩니다. 저장 후 자동 크롤링이 실행됩니다.');
     }
     
-    final resp = await _dio.post('/api/auth/school/save', data: body, options: opts);
-    return Map<String, dynamic>.from(resp.data);
+    try {
+      final resp = await _dio.post('/api/auth/school/save', data: body, options: opts);
+      
+      if (kDebugMode) {
+        print('포털 계정 저장 응답: ${resp.data}');
+        if (resp.data is Map && resp.data['message'] == 'SAVED') {
+          print('✅ 포털 계정 정보가 서버 DB에 영구 저장되었습니다.');
+          print('📋 자동 크롤링이 백그라운드에서 실행됩니다. (약 10~30초 소요)');
+        }
+      }
+      
+      return Map<String, dynamic>.from(resp.data);
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ 포털 계정 저장 실패: ${e.message}');
+        if (e.response != null) {
+          print('응답 상태 코드: ${e.response?.statusCode}');
+          print('응답 데이터: ${e.response?.data}');
+        }
+      }
+      rethrow;
+    }
   }
 }

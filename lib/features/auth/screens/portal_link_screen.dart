@@ -48,11 +48,26 @@ class _PortalLinkScreenState extends State<PortalLinkScreen> {
         final settingsProvider = context.read<SettingsProvider>();
         final l10n = AppLocalizations(settingsProvider.isKorean);
         
+        // 성공 메시지 표시 (자동 크롤링 안내 포함)
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(l10n.portalAccountSaved),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  l10n.portalAccountSaved,
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  '서버 DB에 영구 저장되었습니다. 자동 크롤링이 실행됩니다.',
+                  style: TextStyle(fontSize: 12),
+                ),
+              ],
+            ),
             backgroundColor: Colors.green,
-            duration: const Duration(seconds: 2),
+            duration: const Duration(seconds: 4),
           ),
         );
         
