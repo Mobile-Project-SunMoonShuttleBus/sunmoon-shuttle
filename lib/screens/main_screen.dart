@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:provider/provider.dart';
+import 'package:flutter_naver_map/flutter_naver_map.dart';
+import 'package:geolocator/geolocator.dart';
 import 'settings_screen.dart';
 import '../features/portal/screens/portal_timetable_webview.dart';
 import '../features/portal/screens/timetable_screen.dart';
@@ -21,16 +23,99 @@ class MainScreen extends StatefulWidget {
 class _MainScreenState extends State<MainScreen> {
   bool _isFavorite = false;
   int _selectedIndex = 0; // 현재 선택된 탭 인덱스
+  NaverMapController? _mapController;
+  
+  // 현재 위치 좌표 (기본값: 아산역)
+  double _currentLatitude = 36.7946;
+  double _currentLongitude = 127.1047;
+  bool _isLoadingLocation = true;
 
   @override
   void initState() {
     super.initState();
+    // 현재 위치 가져오기
+    _getCurrentLocation();
     // 앱 시작 시 설정 로드 (토큰 기반 me 조회 시 pref 반영)
     WidgetsBinding.instance.addPostFrameCallback((_) {
       context.read<SettingsProvider>().loadSettings();
       // 앱 시작 시 공지 동기화 (백그라운드에서 실행)
       _syncNoticesOnStartup();
     });
+  }
+
+  /// 현재 위치 가져오기
+  Future<void> _getCurrentLocation() async {
+    try {
+      if (kDebugMode) {
+        print('🔵 현재 위치 가져오기 시작');
+      }
+      
+      // 위치 서비스 활성화 여부 확인
+      bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!serviceEnabled) {
+        if (kDebugMode) {
+          print('⚠️ 위치 서비스가 비활성화되어 있습니다.');
+        }
+        setState(() {
+          _isLoadingLocation = false;
+        });
+        return;
+      }
+
+      // 위치 권한 확인
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          if (kDebugMode) {
+            print('⚠️ 위치 권한이 거부되었습니다.');
+          }
+          setState(() {
+            _isLoadingLocation = false;
+          });
+          return;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        if (kDebugMode) {
+          print('⚠️ 위치 권한이 영구적으로 거부되었습니다.');
+        }
+        setState(() {
+          _isLoadingLocation = false;
+        });
+        return;
+      }
+
+      // 현재 위치 가져오기
+      Position position = await Geolocator.getCurrentPosition();
+      if (kDebugMode) {
+        print('✅ 현재 위치: ${position.latitude}, ${position.longitude}');
+      }
+      
+      setState(() {
+        _currentLatitude = position.latitude;
+        _currentLongitude = position.longitude;
+        _isLoadingLocation = false;
+      });
+
+      // 지도 컨트롤러가 이미 생성되었다면 카메라 이동
+      if (_mapController != null) {
+        await _mapController!.updateCamera(
+          NCameraUpdate.withParams(
+            target: NLatLng(_currentLatitude, _currentLongitude),
+            zoom: 15,
+          ),
+        );
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('🔴 현재 위치 가져오기 실패: $e');
+      }
+      setState(() {
+        _isLoadingLocation = false;
+      });
+    }
   }
 
   /// 앱 시작 시 공지 동기화 (에러 발생해도 앱은 정상 동작)
@@ -86,18 +171,111 @@ class _MainScreenState extends State<MainScreen> {
               _buildHeader(),
               // 공지사항 바
               _buildAnnouncementBar(),
-              // 메인 콘텐츠 영역
+              // 메인 콘텐츠 영역 (지도)
               Expanded(
-                child: Container(
-                  color: Colors.white,
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      // 메인 콘텐츠는 여기에 추가 가능
-                    ],
-                  ),
+                child: kIsWeb
+                    ? Center(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Icon(
+                              Icons.map,
+                              size: 64,
+                              color: Colors.grey,
+                            ),
+                            const SizedBox(height: 16),
+                            const Text(
+                              '지도는 모바일 앱에서만 사용할 수 있습니다.',
+                              style: TextStyle(
+                                fontSize: 16,
+                                color: Colors.grey,
+                              ),
+                              textAlign: TextAlign.center,
+                            ),
+                          ],
+                        ),
+                      )
+                    : _isLoadingLocation
+                        ? const Center(
+                            child: CircularProgressIndicator(),
+                          )
+                        : Stack(
+                            children: [
+                              // 네이버 지도
+                              NaverMap(
+                                options: NaverMapViewOptions(
+                                  initialCameraPosition: NCameraPosition(
+                                    target: NLatLng(_currentLatitude, _currentLongitude),
+                                    zoom: 15,
+                                  ),
+                                  mapType: NMapType.basic,
+                                ),
+                                onMapReady: (controller) async {
+                                  _mapController = controller;
+                                  // 현재 위치로 카메라 이동
+                                  await controller.updateCamera(
+                                    NCameraUpdate.withParams(
+                                      target: NLatLng(_currentLatitude, _currentLongitude),
+                                      zoom: 15,
+                                    ),
+                                  );
+                                  // 현재 위치 마커 추가
+                                  controller.addOverlay(NMarker(
+                                    id: 'current_location',
+                                    position: NLatLng(_currentLatitude, _currentLongitude),
+                                  ));
+                                },
+                              ),
+                    // 탑승위치/탑승시간 정보 박스
+                    Positioned(
+                      top: 16,
+                      right: 16,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 8,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(8),
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.1),
+                              blurRadius: 4,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              '탑승위치 / 탑승시간',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.black,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Text(
+                                  '아산역 / 09:00',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    color: Color(0xFF1890FF),
+                                    fontWeight: FontWeight.w500,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

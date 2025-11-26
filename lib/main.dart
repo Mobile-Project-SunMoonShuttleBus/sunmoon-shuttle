@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:provider/provider.dart';
+import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'services/auth_service.dart';
 import 'screens/login_dialog.dart';
 import 'screens/register_dialog.dart';
@@ -14,6 +16,31 @@ import 'core/localization/app_localizations.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  
+  // 네이버 지도 초기화 (모바일에서만)
+  if (!kIsWeb) {
+    try {
+      if (kDebugMode) {
+        print('🔵 main: NaverMapSdk 초기화 시작');
+      }
+      // flutter_naver_map 패키지 초기화 (모바일 전용)
+      await NaverMapSdk.instance.initialize(
+        clientId: 'rnzdyb4a75',
+      );
+      if (kDebugMode) {
+        print('🔵 main: NaverMapSdk 초기화 완료');
+      }
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        print('🔴 main: NaverMapSdk 초기화 에러: $e');
+        print('🔴 스택 트레이스: $stackTrace');
+      }
+    }
+  } else {
+    if (kDebugMode) {
+      print('⚠️ 웹에서는 네이버 지도를 사용할 수 없습니다.');
+    }
+  }
   
   try {
     if (kDebugMode) {

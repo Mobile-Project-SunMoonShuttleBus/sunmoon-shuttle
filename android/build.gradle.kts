@@ -2,6 +2,10 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+        // 네이버 지도 SDK 저장소
+        maven {
+            url = uri("https://naver.jfrog.io/artifactory/maven/")
+        }
     }
 }
 
