@@ -27,9 +27,13 @@ class TimetableApi {
       receiveTimeout: const Duration(seconds: 8),
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json',
+        'Accept': 'application/json', // JSON만 받도록 명시 (Swagger HTML 방지)
       },
       responseType: ResponseType.json,
+      validateStatus: (status) {
+        // 200-299 범위의 상태 코드만 성공으로 처리
+        return status != null && status >= 200 && status < 300;
+      },
     ));
     // 401 처리 및 토큰 갱신 인터셉터 추가
     _dio.interceptors.add(AuthInterceptor());

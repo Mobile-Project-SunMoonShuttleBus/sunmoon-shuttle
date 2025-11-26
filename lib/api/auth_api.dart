@@ -32,9 +32,13 @@ class AuthApi {
       receiveTimeout: const Duration(seconds: 8),
       headers: {
         'Content-Type': 'application/json',
-        'Accept': 'application/json', // JSON만 받도록 명시
+        'Accept': 'application/json', // JSON만 받도록 명시 (Swagger HTML 방지)
       },
       responseType: ResponseType.json, // JSON 응답만 받도록 명시
+      validateStatus: (status) {
+        // 200-299 범위의 상태 코드만 성공으로 처리
+        return status != null && status >= 200 && status < 300;
+      },
     ));
     // 401 처리 및 토큰 갱신 인터셉터 추가
     _dio.interceptors.add(AuthInterceptor());
@@ -170,8 +174,14 @@ class AuthApi {
   }
 
   /// 보호된 API 호출 예시
+  /// GET /api/users/me
+  /// Swagger HTML 응답 방지를 위해 Accept 헤더를 명시적으로 설정
   Future<Map<String, dynamic>> getMe() async {
-    final opts = Options();
+    final opts = Options(
+      headers: {
+        'Accept': 'application/json', // Swagger HTML 방지를 위해 명시적으로 설정
+      },
+    );
     AuthService.I.attachAuthHeader(opts);
     
     try {
@@ -181,6 +191,22 @@ class AuthApi {
         print('🔵 getMe 응답 상태 코드: ${resp.statusCode}');
         print('🔵 getMe 응답 Content-Type: ${resp.headers.value('content-type')}');
         print('🔵 getMe 응답 데이터 타입: ${resp.data.runtimeType}');
+      }
+      
+      // Content-Type 헤더 확인 (Swagger HTML 방지)
+      final contentType = resp.headers.value('content-type')?.toLowerCase() ?? '';
+      if (contentType.contains('text/html') || contentType.contains('text/plain')) {
+        if (kDebugMode) {
+          print('⚠️ getMe 응답이 HTML입니다. Content-Type: $contentType');
+          print('⚠️ 서버가 Swagger UI를 반환하고 있습니다.');
+          print('⚠️ 백엔드 라우팅 설정을 확인하세요. /api/users/me가 Swagger로 리다이렉트되고 있습니다.');
+        }
+        throw DioException(
+          requestOptions: resp.requestOptions,
+          response: resp,
+          type: DioExceptionType.badResponse,
+          message: '서버가 Swagger HTML을 반환했습니다. 백엔드 API 라우팅 설정을 확인하세요. (baseUrl: ${resp.requestOptions.baseUrl})',
+        );
       }
       
       // 응답이 JSON인지 확인
@@ -221,6 +247,7 @@ class AuthApi {
     } on DioException catch (e) {
       if (kDebugMode) {
         print('❌ getMe API 호출 실패: ${e.message}');
+        print('❌ 요청 URL: ${e.requestOptions.baseUrl}${e.requestOptions.path}');
         if (e.response != null) {
           print('❌ 응답 상태 코드: ${e.response?.statusCode}');
           print('❌ 응답 데이터 타입: ${e.response?.data.runtimeType}');

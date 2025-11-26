@@ -30,10 +30,17 @@ class AuthInterceptor extends Interceptor {
       '${options.method} ${options.baseUrl}${options.path}',
     );
     
+    // 모든 요청에 헤더 설정
+    options.headers ??= {};
+    
+    // Swagger HTML 방지를 위해 Accept 헤더 명시적으로 설정
+    if (!options.headers!.containsKey('Accept')) {
+      options.headers!['Accept'] = 'application/json';
+    }
+    
     // 모든 요청에 accessToken 자동 추가
     final token = _authService.token;
     if (token != null) {
-      options.headers ??= {};
       options.headers!['Authorization'] = 'Bearer $token';
     }
     

@@ -46,21 +46,29 @@ class ShuttleNoticeSummary {
 }
 
 /// 셔틀 공지 상세용 모델
+/// API 응답: { "_id": "...", "portalNoticeId": "...", "title": "...", "content": "...", 
+///            "summary": "...", "url": "...", "postedAt": "...", "createdAt": "...", "updatedAt": "..." }
 class ShuttleNoticeDetail {
   final String id;
+  final String portalNoticeId; // 포털 공지 ID
   final String title;
   final String content; // 원문 전체
   final String summary; // LLM 요약 (없으면 빈 문자열일 수 있음)
   final String url;     // 포털 원문 URL
   final DateTime postedAt;
+  final DateTime? createdAt; // 생성일 (선택적)
+  final DateTime? updatedAt; // 수정일 (선택적)
 
   ShuttleNoticeDetail({
     required this.id,
+    required this.portalNoticeId,
     required this.title,
     required this.content,
     required this.summary,
     required this.url,
     required this.postedAt,
+    this.createdAt,
+    this.updatedAt,
   });
 
   factory ShuttleNoticeDetail.fromJson(Map<String, dynamic> json) {
@@ -68,6 +76,11 @@ class ShuttleNoticeDetail {
       final id = json['_id'] as String? ?? json['id'] as String?;
       if (id == null) {
         throw FormatException('공지 ID가 없습니다. JSON: $json');
+      }
+
+      final portalNoticeId = json['portalNoticeId'] as String? ?? '';
+      if (portalNoticeId.isEmpty) {
+        throw FormatException('포털 공지 ID가 없습니다. JSON: $json');
       }
 
       final title = json['title'] as String?;
@@ -93,13 +106,35 @@ class ShuttleNoticeDetail {
         throw FormatException('공지 게시일이 없습니다. JSON: $json');
       }
 
+      // createdAt, updatedAt은 선택적 필드
+      DateTime? createdAt;
+      if (json['createdAt'] != null) {
+        try {
+          createdAt = DateTime.parse(json['createdAt'] as String);
+        } catch (e) {
+          // 파싱 실패해도 계속 진행
+        }
+      }
+
+      DateTime? updatedAt;
+      if (json['updatedAt'] != null) {
+        try {
+          updatedAt = DateTime.parse(json['updatedAt'] as String);
+        } catch (e) {
+          // 파싱 실패해도 계속 진행
+        }
+      }
+
       return ShuttleNoticeDetail(
         id: id,
+        portalNoticeId: portalNoticeId,
         title: title,
         content: content,
         summary: summary,
         url: url,
         postedAt: DateTime.parse(postedAtStr),
+        createdAt: createdAt,
+        updatedAt: updatedAt,
       );
     } catch (e) {
       throw FormatException('ShuttleNoticeDetail 파싱 실패: $e, JSON: $json');

@@ -23,39 +23,18 @@ class SettingsProvider extends ChangeNotifier {
   bool get isLoading => _isLoading;
   String? get errorMessage => _errorMessage;
 
-  /// 초기 설정 로드 (getMe API에서 pref 정보 가져오기 + 로컬 영속 저장)
+  /// 초기 설정 로드 (로컬 영속 저장된 설정만 사용)
+  /// 서버 동기화는 필요 없으므로 로컬 설정만 로드
   Future<void> loadSettings() async {
     try {
-      // 먼저 로컬에서 설정 로드 (서버 응답 전에 빠른 로드)
+      // 로컬에서 설정 로드
       await _loadSettingsFromLocal();
-
-      // 서버에서 설정 로드
-      final me = await _authApi.getMe();
-      final pref = me['data']?['pref'] as Map<String, dynamic>?;
-      
-      if (pref != null) {
-        final serverCrowdAnimation = pref['crowdAnimation'] as bool?;
-        if (serverCrowdAnimation != null) {
-          _crowdAnimation = serverCrowdAnimation;
-          await _saveCrowdAnimationToLocal(_crowdAnimation);
-        }
-        
-        // 언어 설정 로드 (서버 우선, 없으면 로컬 값 유지)
-        final serverLang = pref['lang'] as String?;
-        if (serverLang != null && (serverLang == 'ko' || serverLang == 'en')) {
-          _language = serverLang;
-          // 서버 값으로 로컬 영속 저장
-          await _saveLanguageToLocal(_language);
-        }
-      }
-      
       notifyListeners();
     } catch (e) {
       if (kDebugMode) {
         print('설정 로드 실패: $e');
       }
-      // 설정 로드 실패 시 로컬 값 사용
-      await _loadSettingsFromLocal();
+      // 기본값 사용
       notifyListeners();
     }
   }
