@@ -25,11 +25,11 @@ void main() async {
       }
       // flutter_naver_map 패키지 초기화 (모바일 전용)
       await NaverMapSdk.instance.initialize(
-        clientId: 'rnzdyb4a75',
+        clientId: 'i94jktzz8g',
         onAuthFailed: (exception) {
           if (kDebugMode) {
             print('🔴 네이버 지도 인증 실패: $exception');
-            print('🔴 Client ID: rnzdyb4a75');
+            print('🔴 Client ID: i94jktzz8g');
             print('🔴 패키지 이름 확인 필요: com.sunmoon.shuttle');
             print('🔴 네이버 클라우드 플랫폼에서 다음을 확인하세요:');
             print('   1. Android 패키지 이름: com.sunmoon.shuttle');

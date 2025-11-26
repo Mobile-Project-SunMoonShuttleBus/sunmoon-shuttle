@@ -33,7 +33,7 @@
         <!-- 네이버 지도 API 키 -->
         <meta-data
             android:name="com.naver.maps.map.CLIENT_ID"
-            android:value="rnzdyb4a75" />
+            android:value="i94jktzz8g" />
     </application>
     <!-- 네이버 지도 권한 -->
     <uses-permission android:name="android.permission.INTERNET" />
