@@ -1,5 +1,6 @@
-package com.example.sunmoon_shuttle
+package com.sunmoon.shuttle
 
 import io.flutter.embedding.android.FlutterActivity
 
 class MainActivity : FlutterActivity()
+
