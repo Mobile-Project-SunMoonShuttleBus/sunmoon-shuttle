@@ -21,29 +21,35 @@ void main() async {
   if (!kIsWeb) {
     try {
       if (kDebugMode) {
-        print('🔵 main: NaverMapSdk 초기화 시작');
+        print('🔵 main: FlutterNaverMap 초기화 시작');
       }
       // flutter_naver_map 패키지 초기화 (모바일 전용)
-      await NaverMapSdk.instance.initialize(
+      // 공식 문서에 따라 FlutterNaverMap().init() 사용
+      await FlutterNaverMap().init(
         clientId: 'i94jktzz8g',
-        onAuthFailed: (exception) {
+        onAuthFailed: (ex) {
           if (kDebugMode) {
-            print('🔴 네이버 지도 인증 실패: $exception');
-            print('🔴 Client ID: i94jktzz8g');
-            print('🔴 패키지 이름 확인 필요: com.sunmoon.shuttle');
-            print('🔴 네이버 클라우드 플랫폼에서 다음을 확인하세요:');
-            print('   1. Android 패키지 이름: com.sunmoon.shuttle');
-            print('   2. SHA-1: 70:5B:C1:E4:91:11:5A:36:A1:16:C4:34:AD:4F:D8:7A:36:2C:85:DC');
-            print('   3. Maps 서비스 활성화 여부');
+            switch (ex) {
+              case NQuotaExceededException(:final message):
+                print('🔴 사용량 초과 (message: $message)');
+                break;
+              case NUnauthorizedClientException() ||
+                  NClientUnspecifiedException() ||
+                  NAnotherAuthFailedException():
+                print('🔴 네이버 지도 인증 실패: $ex');
+                print('🔴 Client ID: i94jktzz8g');
+                print('🔴 패키지 이름 확인 필요: com.sunmoon.shuttle');
+                break;
+            }
           }
         },
       );
       if (kDebugMode) {
-        print('🔵 main: NaverMapSdk 초기화 완료');
+        print('🔵 main: FlutterNaverMap 초기화 완료');
       }
     } catch (e, stackTrace) {
       if (kDebugMode) {
-        print('🔴 main: NaverMapSdk 초기화 에러: $e');
+        print('🔴 main: FlutterNaverMap 초기화 에러: $e');
         print('🔴 스택 트레이스: $stackTrace');
       }
     }
