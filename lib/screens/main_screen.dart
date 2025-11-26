@@ -29,6 +29,7 @@ class _MainScreenState extends State<MainScreen> {
   double _currentLatitude = 36.7946;
   double _currentLongitude = 127.1047;
   bool _isLoadingLocation = true;
+  bool _isMapReady = false;
 
   @override
   void initState() {
@@ -219,7 +220,14 @@ class _MainScreenState extends State<MainScreen> {
                                   consumeSymbolTapEvents: false,
                                 ),
                                 onMapReady: (controller) async {
+                                  if (kDebugMode) {
+                                    print('🔵 지도 준비 완료');
+                                  }
                                   _mapController = controller;
+                                  setState(() {
+                                    _isMapReady = true;
+                                  });
+                                  
                                   // 현재 위치로 카메라 이동
                                   await controller.updateCamera(
                                     NCameraUpdate.withParams(
@@ -227,11 +235,21 @@ class _MainScreenState extends State<MainScreen> {
                                       zoom: 15,
                                     ),
                                   );
+                                  
                                   // 현재 위치 마커 추가
                                   controller.addOverlay(NMarker(
                                     id: 'current_location',
                                     position: NLatLng(_currentLatitude, _currentLongitude),
                                   ));
+                                  
+                                  if (kDebugMode) {
+                                    print('✅ 지도 초기화 및 마커 추가 완료');
+                                  }
+                                },
+                                onMapTapped: (point, latLng) {
+                                  if (kDebugMode) {
+                                    print('🔵 지도 탭: $latLng');
+                                  }
                                 },
                               ),
                     // 탑승위치/탑승시간 정보 박스
