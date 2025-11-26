@@ -29,7 +29,12 @@ void main() async {
         onAuthFailed: (exception) {
           if (kDebugMode) {
             print('🔴 네이버 지도 인증 실패: $exception');
-            print('🔴 Client ID를 확인해주세요: rnzdyb4a75');
+            print('🔴 Client ID: rnzdyb4a75');
+            print('🔴 패키지 이름 확인 필요: com.sunmoon.shuttle');
+            print('🔴 네이버 클라우드 플랫폼에서 다음을 확인하세요:');
+            print('   1. Android 패키지 이름: com.sunmoon.shuttle');
+            print('   2. SHA-1: 70:5B:C1:E4:91:11:5A:36:A1:16:C4:34:AD:4F:D8:7A:36:2C:85:DC');
+            print('   3. Maps 서비스 활성화 여부');
           }
         },
       );
