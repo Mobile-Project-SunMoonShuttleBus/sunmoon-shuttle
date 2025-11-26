@@ -210,14 +210,6 @@ class _MainScreenState extends State<MainScreen> {
                                     zoom: 15,
                                   ),
                                   mapType: NMapType.basic,
-                                  minZoom: 10.0,
-                                  maxZoom: 20.0,
-                                  scrollGesturesEnabled: true,
-                                  zoomGesturesEnabled: true,
-                                  tiltGesturesEnabled: true,
-                                  rotateGesturesEnabled: true,
-                                  locationButtonEnable: false,
-                                  consumeSymbolTapEvents: false,
                                 ),
                                 onMapReady: (controller) async {
                                   if (kDebugMode) {

@@ -26,6 +26,12 @@ void main() async {
       // flutter_naver_map 패키지 초기화 (모바일 전용)
       await NaverMapSdk.instance.initialize(
         clientId: 'rnzdyb4a75',
+        onAuthFailed: (exception) {
+          if (kDebugMode) {
+            print('🔴 네이버 지도 인증 실패: $exception');
+            print('🔴 Client ID를 확인해주세요: rnzdyb4a75');
+          }
+        },
       );
       if (kDebugMode) {
         print('🔵 main: NaverMapSdk 초기화 완료');
