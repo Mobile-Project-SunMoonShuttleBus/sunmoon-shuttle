@@ -43,15 +43,10 @@ class CongestionService {
   static const int _maxRetries = 3;
 
   // 위치 업데이트 설정 (백그라운드 지원)
-  // 정지 상태에서는 distanceFilter를 늘려 배터리 절약
-  static LocationSettings get _locationSettings {
-    // 정지 상태면 50m, 이동 중이면 10m
-    final distanceFilter = _stationaryCount >= _maxStationaryCount ? 50.0 : 10.0;
-    return LocationSettings(
-      accuracy: LocationAccuracy.high,
-      distanceFilter: distanceFilter,
-    );
-  }
+  static const LocationSettings _locationSettings = LocationSettings(
+    accuracy: LocationAccuracy.high,
+    distanceFilter: 10, // 10m 이상 이동 시 업데이트
+  );
 
   /// 위치 추적 시작 (자동 감지 모드)
   /// 지도 화면에 있을 때 자동으로 호출
@@ -278,6 +273,33 @@ class CongestionService {
     return congestionIndex.clamp(0, 100);
   }
 
+  /// 백엔드로 혼잡도 리포트 전송 (빈도 제한)
+  void _sendCongestionReportWithThrottle({
+    required String routeId,
+    required String stopId,
+    required int index,
+  }) {
+    final now = DateTime.now();
+    
+    // 빈도 제한 체크
+    if (_lastReportTime != null) {
+      final timeSinceLastReport = now.difference(_lastReportTime!);
+      if (timeSinceLastReport < _minReportInterval) {
+        if (kDebugMode) {
+          print('⏱️ 리포트 전송 빈도 제한: ${timeSinceLastReport.inSeconds}초 전에 전송됨');
+        }
+        return;
+      }
+    }
+
+    _lastReportTime = now;
+    _sendCongestionReport(
+      routeId: routeId,
+      stopId: stopId,
+      index: index,
+    );
+  }
+
   /// 백엔드로 혼잡도 리포트 전송
   Future<void> _sendCongestionReport({
     required String routeId,
@@ -306,7 +328,67 @@ class CongestionService {
       if (kDebugMode) {
         print('❌ 혼잡도 리포트 전송 실패: $e');
       }
-      // 전송 실패해도 위치 추적은 계속
+      
+      // 실패한 리포트를 재시도 큐에 추가
+      _pendingReports.add(_PendingReport(
+        routeId: routeId,
+        stopId: stopId,
+        index: index,
+        retryCount: 0,
+      ));
+    }
+  }
+
+  /// 실패한 리포트 재시도
+  Future<void> _retryPendingReports() async {
+    if (_pendingReports.isEmpty) return;
+
+    final now = DateTime.now();
+    final reportsToRetry = _pendingReports.where((report) {
+      // 마지막 시도로부터 10초 이상 지났으면 재시도
+      final timeSinceLastRetry = now.difference(report.lastRetryTime);
+      return timeSinceLastRetry.inSeconds >= 10;
+    }).toList();
+
+    for (final report in reportsToRetry) {
+      if (report.retryCount >= _maxRetries) {
+        // 최대 재시도 횟수 초과 시 제거
+        _pendingReports.remove(report);
+        if (kDebugMode) {
+          print('❌ 리포트 재시도 포기: ${report.retryCount}회 실패');
+        }
+        continue;
+      }
+
+      try {
+        final weekday = now.weekday - 1;
+        final timeSlot = _calculateTimeSlot(now);
+        
+        final request = CongestionReportRequest(
+          routeId: report.routeId,
+          stopId: report.stopId,
+          weekday: weekday,
+          timeSlot: timeSlot,
+          index: report.index,
+        );
+
+        await CongestionApi.I.reportCongestion(request);
+        
+        // 성공 시 큐에서 제거
+        _pendingReports.remove(report);
+        
+        if (kDebugMode) {
+          print('✅ 리포트 재시도 성공: ${report.retryCount + 1}회 시도');
+        }
+      } catch (e) {
+        // 실패 시 재시도 카운트 증가
+        report.retryCount++;
+        report.lastRetryTime = now;
+        
+        if (kDebugMode) {
+          print('⚠️ 리포트 재시도 실패 (${report.retryCount}/$_maxRetries): $e');
+        }
+      }
     }
   }
 
@@ -339,5 +421,21 @@ class CongestionService {
       print('📍 노선/정류장 업데이트: routeId=$_currentRouteId, stopId=$_currentStopId');
     }
   }
+}
+
+/// 재시도 대기 중인 리포트
+class _PendingReport {
+  final String routeId;
+  final String stopId;
+  final int index;
+  int retryCount;
+  DateTime lastRetryTime;
+
+  _PendingReport({
+    required this.routeId,
+    required this.stopId,
+    required this.index,
+    required this.retryCount,
+  }) : lastRetryTime = DateTime.now();
 }
 
