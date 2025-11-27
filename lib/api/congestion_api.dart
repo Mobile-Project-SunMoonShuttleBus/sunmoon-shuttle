@@ -2,7 +2,6 @@
 /// 백엔드로 혼잡도 리포트 전송
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
-import '../services/auth_service.dart';
 import '../models/congestion_models.dart';
 import 'dio_interceptor.dart';
 
