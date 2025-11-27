@@ -117,7 +117,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               _buildSettingItem(
                 context,
                 label: l10n.language,
-                value: settingsProvider.isKorean ? l10n.languageKo : l10n.languageEn,
+                value: l10n.currentLanguageDisplay, // 현재 언어 표시 (한국어 또는 English)
                 isEnabled: settingsProvider.isKorean, // 활성화(ON) = 한국어, 비활성화(OFF) = 영어
                 onChanged: (value) async {
                   // value가 true면 한국어, false면 영어

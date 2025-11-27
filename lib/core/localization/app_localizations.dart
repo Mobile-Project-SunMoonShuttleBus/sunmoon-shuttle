@@ -14,8 +14,8 @@ class AppLocalizations {
   String get settingsTitle => isKorean ? '설정 페이지' : 'Settings';
   String get crowdAnimation => isKorean ? '혼잡도 애니메이션' : 'Crowd Animation';
   String get language => isKorean ? '언어' : 'Language';
-  String get languageKo => isKorean ? '한/영' : 'Ko/En';
-  String get languageEn => isKorean ? '영/한' : 'En/Ko';
+  // 현재 언어 표시 (한국어일 때 "한국어", 영어일 때 "English")
+  String get currentLanguageDisplay => isKorean ? '한국어' : 'English';
   String get logout => isKorean ? '로그아웃' : 'Logout';
   String get logoutConfirm => isKorean ? '정말 로그아웃 하시겠습니까?' : 'Are you sure you want to logout?';
   String get cancel => isKorean ? '취소' : 'Cancel';
