@@ -165,15 +165,34 @@ class CongestionService {
       return;
     }
 
-    // 속도 계산
+    // 속도 계산 (GPS 속도와 계산 속도 모두 활용)
     final speedMeasurement = _calculateSpeed(_lastLocation!, currentLocation);
+    
+    // GPS 속도도 활용 (더 정확할 수 있음)
+    final gpsSpeedKmh = (position.speed * 3.6); // m/s → km/h
+    final finalSpeedKmh = gpsSpeedKmh > 0 && gpsSpeedKmh < 120 
+        ? (speedMeasurement.speedKmh * 0.7 + gpsSpeedKmh * 0.3) // 계산 속도 70% + GPS 속도 30%
+        : speedMeasurement.speedKmh; // GPS 속도가 비정상이면 계산 속도만 사용
 
     if (kDebugMode) {
-      print('📍 위치 업데이트: 속도 ${speedMeasurement.speedKmh.toStringAsFixed(1)} km/h');
+      print('📍 위치 업데이트: 계산속도 ${speedMeasurement.speedKmh.toStringAsFixed(1)} km/h, GPS속도 ${gpsSpeedKmh.toStringAsFixed(1)} km/h, 최종 ${finalSpeedKmh.toStringAsFixed(1)} km/h');
     }
 
-    // 버스 탑승 자동 감지: 속도가 일정 이상이면 버스 탑승으로 판단
-    final isOnBus = speedMeasurement.speedKmh >= _busBoardingSpeed;
+    // 정지 상태 감지 (배터리 최적화)
+    if (finalSpeedKmh <= _stationarySpeedThreshold) {
+      _stationaryCount++;
+    } else {
+      _stationaryCount = 0; // 이동 중이면 카운터 리셋
+    }
+
+    // 버스 탑승 자동 감지: 연속적으로 일정 속도 이상이면 버스 탑승으로 판단
+    if (finalSpeedKmh >= _busBoardingSpeed) {
+      _consecutiveBusSpeedCount++;
+    } else {
+      _consecutiveBusSpeedCount = 0; // 속도가 떨어지면 리셋
+    }
+    
+    final isOnBus = _consecutiveBusSpeedCount >= _minConsecutiveBusSpeed;
     
     if (!isOnBus) {
       // 버스에 탑승하지 않았으면 혼잡도 측정 안 함
@@ -182,16 +201,16 @@ class CongestionService {
     }
 
     // 버스 탑승 중이고, 사용자 속도 < 버스 속도 → 혼잡
-    if (speedMeasurement.speedKmh < _busAverageSpeed) {
-      final congestionIndex = _calculateCongestionIndex(speedMeasurement.speedKmh);
+    if (finalSpeedKmh < _busAverageSpeed) {
+      final congestionIndex = _calculateCongestionIndex(finalSpeedKmh);
       
       if (kDebugMode) {
-        print('🚌 혼잡도 판정: $congestionIndex (속도: ${speedMeasurement.speedKmh.toStringAsFixed(1)} km/h < 버스: $_busAverageSpeed km/h)');
+        print('🚌 혼잡도 판정: $congestionIndex (속도: ${finalSpeedKmh.toStringAsFixed(1)} km/h < 버스: $_busAverageSpeed km/h)');
       }
 
-      // 백엔드로 리포트 전송 (null 체크)
+      // 백엔드로 리포트 전송 (빈도 제한 + null 체크)
       if (_currentRouteId != null && _currentStopId != null) {
-        _sendCongestionReport(
+        _sendCongestionReportWithThrottle(
           routeId: _currentRouteId!,
           stopId: _currentStopId!,
           index: congestionIndex,
@@ -204,6 +223,9 @@ class CongestionService {
     }
 
     _lastLocation = currentLocation;
+    
+    // 실패한 리포트 재시도
+    _retryPendingReports();
   }
 
   /// 두 위치 간 속도 계산
