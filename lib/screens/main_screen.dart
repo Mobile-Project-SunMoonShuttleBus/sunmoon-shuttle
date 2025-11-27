@@ -42,7 +42,16 @@ class _MainScreenState extends State<MainScreen> {
       context.read<SettingsProvider>().loadSettings();
       // 앱 시작 시 공지 동기화 (백그라운드에서 실행)
       _syncNoticesOnStartup();
+      // 지도 화면이면 자동으로 혼잡도 추적 시작
+      _startCongestionTracking();
     });
+  }
+
+  @override
+  void dispose() {
+    // 화면 종료 시 혼잡도 추적 중지
+    CongestionService.I.stopTracking();
+    super.dispose();
   }
 
   /// 현재 위치 가져오기
@@ -117,6 +126,38 @@ class _MainScreenState extends State<MainScreen> {
       setState(() {
         _isLoadingLocation = false;
       });
+    }
+  }
+
+  /// 혼잡도 자동 추적 시작 (지도 화면일 때)
+  Future<void> _startCongestionTracking() async {
+    // 버스 운영 시간 확인
+    if (!CongestionService.I.isBusOperatingTime(DateTime.now())) {
+      if (kDebugMode) {
+        print('⚠️ 버스 운영 시간이 아니므로 혼잡도 추적을 시작하지 않습니다.');
+      }
+      return;
+    }
+
+    // 지도 화면(첫 번째 탭)이면 자동으로 추적 시작
+    if (_selectedIndex == 0) {
+      try {
+        await CongestionService.I.startAutoTracking(
+          onError: (error) {
+            if (kDebugMode) {
+              print('⚠️ 혼잡도 추적 오류: $error');
+            }
+            // 사용자에게는 조용히 실패 (필요시 스낵바로 알림 가능)
+          },
+        );
+        if (kDebugMode) {
+          print('✅ 혼잡도 자동 추적 시작');
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ 혼잡도 추적 시작 실패: $e');
+        }
+      }
     }
   }
 
@@ -433,6 +474,8 @@ class _MainScreenState extends State<MainScreen> {
                   setState(() {
                     _selectedIndex = 0;
                   });
+                  // 지도 화면으로 돌아오면 혼잡도 추적 시작
+                  _startCongestionTracking();
                 },
               ),
               // 일정 + 버스 아이콘
@@ -456,6 +499,8 @@ class _MainScreenState extends State<MainScreen> {
                   setState(() {
                     _selectedIndex = 2;
                   });
+                  // 다른 탭으로 이동하면 혼잡도 추적 중지
+                  CongestionService.I.stopTracking();
                   // 포털 계정 정보 확인 후 분기
                   await _navigateToTimetable(context);
                 },
@@ -465,6 +510,8 @@ class _MainScreenState extends State<MainScreen> {
                 icon: Icons.settings,
                 isSelected: _selectedIndex == 3,
                 onTap: () {
+                  // 다른 탭으로 이동하면 혼잡도 추적 중지
+                  CongestionService.I.stopTracking();
                   // 설정 화면 열기
                   showDialog(
                     context: context,
