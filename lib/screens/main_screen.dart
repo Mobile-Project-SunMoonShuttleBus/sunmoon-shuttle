@@ -12,6 +12,7 @@ import '../core/localization/app_localizations.dart';
 import 'notice/shuttle_notice_list_screen.dart';
 import '../api/notice_api.dart';
 import 'portal_login_screen.dart';
+import '../services/congestion_service.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});

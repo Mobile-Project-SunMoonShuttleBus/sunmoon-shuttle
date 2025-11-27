@@ -16,9 +16,14 @@ class CongestionService {
   StreamSubscription<Position>? _positionStream;
   LocationData? _lastLocation;
   bool _isTracking = false;
+  String? _currentRouteId;
+  String? _currentStopId;
 
   // 버스 평균 속도 (km/h)
   static const double _busAverageSpeed = 50.0; // 도심/고속도로 평균
+  
+  // 버스 탑승 판정 속도 (km/h) - 이 속도 이상이면 버스 탑승으로 판단
+  static const double _busBoardingSpeed = 20.0; // 20km/h 이상이면 버스 탑승으로 판단
 
   // 위치 업데이트 설정
   static const LocationSettings _locationSettings = LocationSettings(
@@ -26,11 +31,12 @@ class CongestionService {
     distanceFilter: 10, // 10m 이상 이동 시 업데이트
   );
 
-  /// 위치 추적 시작
-  /// 버스 운영 시간에만 호출
-  Future<void> startTracking({
-    required String routeId,
-    required String stopId,
+  /// 위치 추적 시작 (자동 감지 모드)
+  /// 지도 화면에 있을 때 자동으로 호출
+  /// routeId와 stopId는 나중에 자동 감지하거나 기본값 사용
+  Future<void> startAutoTracking({
+    String? routeId,
+    String? stopId,
     Function(String)? onError,
   }) async {
     if (_isTracking) {
@@ -64,9 +70,11 @@ class CongestionService {
 
       _isTracking = true;
       _lastLocation = null;
+      _currentRouteId = routeId ?? 'R001'; // 기본값 또는 자동 감지
+      _currentStopId = stopId ?? 'S001'; // 기본값 또는 자동 감지
 
       if (kDebugMode) {
-        print('🔵 혼잡도 위치 추적 시작');
+        print('🔵 혼잡도 자동 위치 추적 시작');
       }
 
       // 위치 스트림 구독
@@ -74,7 +82,7 @@ class CongestionService {
         locationSettings: _locationSettings,
       ).listen(
         (Position position) {
-          _handlePositionUpdate(position, routeId, stopId);
+          _handlePositionUpdate(position);
         },
         onError: (error) {
           if (kDebugMode) {
@@ -108,8 +116,8 @@ class CongestionService {
     }
   }
 
-  /// 위치 업데이트 처리
-  void _handlePositionUpdate(Position position, String routeId, String stopId) {
+  /// 위치 업데이트 처리 (자동 감지)
+  void _handlePositionUpdate(Position position) {
     final now = DateTime.now();
     final currentLocation = LocationData(
       latitude: position.latitude,
@@ -134,9 +142,17 @@ class CongestionService {
       print('📍 위치 업데이트: 속도 ${speedMeasurement.speedKmh.toStringAsFixed(1)} km/h');
     }
 
-    // 혼잡도 판정
+    // 버스 탑승 자동 감지: 속도가 일정 이상이면 버스 탑승으로 판단
+    final isOnBus = speedMeasurement.speedKmh >= _busBoardingSpeed;
+    
+    if (!isOnBus) {
+      // 버스에 탑승하지 않았으면 혼잡도 측정 안 함
+      _lastLocation = currentLocation;
+      return;
+    }
+
+    // 버스 탑승 중이고, 사용자 속도 < 버스 속도 → 혼잡
     if (speedMeasurement.speedKmh < _busAverageSpeed) {
-      // 사용자 속도 < 버스 속도 → 혼잡
       final congestionIndex = _calculateCongestionIndex(speedMeasurement.speedKmh);
       
       if (kDebugMode) {
@@ -145,8 +161,8 @@ class CongestionService {
 
       // 백엔드로 리포트 전송
       _sendCongestionReport(
-        routeId: routeId,
-        stopId: stopId,
+        routeId: _currentRouteId!,
+        stopId: _currentStopId!,
         index: congestionIndex,
       );
     }
@@ -255,5 +271,15 @@ class CongestionService {
 
   /// 추적 중인지 확인
   bool get isTracking => _isTracking;
+  
+  /// 현재 노선/정류장 업데이트 (자동 감지 또는 사용자 선택 시)
+  void updateRouteAndStop({String? routeId, String? stopId}) {
+    if (routeId != null) _currentRouteId = routeId;
+    if (stopId != null) _currentStopId = stopId;
+    
+    if (kDebugMode) {
+      print('📍 노선/정류장 업데이트: routeId=$_currentRouteId, stopId=$_currentStopId');
+    }
+  }
 }
 
