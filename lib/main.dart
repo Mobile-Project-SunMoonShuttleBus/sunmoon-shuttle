@@ -96,8 +96,38 @@ void main() async {
   runApp(const MyApp());
 }
 
-class MyApp extends StatelessWidget {
+class MyApp extends StatefulWidget {
   const MyApp({super.key});
+
+  @override
+  State<MyApp> createState() => _MyAppState();
+}
+
+class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    
+    if (kDebugMode) {
+      print('🔵 앱 생명주기 변경: $state');
+    }
+    
+    // 앱이 백그라운드로 가거나 포그라운드로 올 때 처리
+    // 혼잡도 서비스는 백그라운드에서도 계속 작동하도록 설정됨
+  }
+
   @override
   Widget build(BuildContext context) {
     return MultiProvider(

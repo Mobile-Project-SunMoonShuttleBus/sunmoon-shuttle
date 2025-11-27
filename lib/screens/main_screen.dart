@@ -42,15 +42,15 @@ class _MainScreenState extends State<MainScreen> {
       context.read<SettingsProvider>().loadSettings();
       // 앱 시작 시 공지 동기화 (백그라운드에서 실행)
       _syncNoticesOnStartup();
-      // 지도 화면이면 자동으로 혼잡도 추적 시작
+      // 앱 시작 시 자동으로 혼잡도 추적 시작 (백그라운드에서도 작동)
       _startCongestionTracking();
     });
   }
 
   @override
   void dispose() {
-    // 화면 종료 시 혼잡도 추적 중지
-    CongestionService.I.stopTracking();
+    // 화면 종료 시에도 추적은 계속 (백그라운드 지원)
+    // 앱이 완전히 종료될 때만 중지
     super.dispose();
   }
 
@@ -129,7 +129,7 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  /// 혼잡도 자동 추적 시작 (지도 화면일 때)
+  /// 혼잡도 자동 추적 시작 (백그라운드에서도 작동)
   Future<void> _startCongestionTracking() async {
     // 버스 운영 시간 확인
     if (!CongestionService.I.isBusOperatingTime(DateTime.now())) {
@@ -139,24 +139,30 @@ class _MainScreenState extends State<MainScreen> {
       return;
     }
 
-    // 지도 화면(첫 번째 탭)이면 자동으로 추적 시작
-    if (_selectedIndex == 0) {
-      try {
-        await CongestionService.I.startAutoTracking(
-          onError: (error) {
-            if (kDebugMode) {
-              print('⚠️ 혼잡도 추적 오류: $error');
-            }
-            // 사용자에게는 조용히 실패 (필요시 스낵바로 알림 가능)
-          },
-        );
-        if (kDebugMode) {
-          print('✅ 혼잡도 자동 추적 시작');
-        }
-      } catch (e) {
-        if (kDebugMode) {
-          print('⚠️ 혼잡도 추적 시작 실패: $e');
-        }
+    // 이미 추적 중이면 중복 시작하지 않음
+    if (CongestionService.I.isTracking) {
+      if (kDebugMode) {
+        print('⚠️ 혼잡도 추적이 이미 시작되어 있습니다.');
+      }
+      return;
+    }
+
+    try {
+      // 백그라운드에서도 작동하도록 자동 추적 시작
+      await CongestionService.I.startAutoTracking(
+        onError: (error) {
+          if (kDebugMode) {
+            print('⚠️ 혼잡도 추적 오류: $error');
+          }
+          // 사용자에게는 조용히 실패 (필요시 스낵바로 알림 가능)
+        },
+      );
+      if (kDebugMode) {
+        print('✅ 혼잡도 자동 추적 시작 (백그라운드 지원)');
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('⚠️ 혼잡도 추적 시작 실패: $e');
       }
     }
   }
@@ -474,8 +480,7 @@ class _MainScreenState extends State<MainScreen> {
                   setState(() {
                     _selectedIndex = 0;
                   });
-                  // 지도 화면으로 돌아오면 혼잡도 추적 시작
-                  _startCongestionTracking();
+                  // 지도 화면으로 돌아와도 추적은 계속 (이미 시작되어 있으면 중복 시작 안 함)
                 },
               ),
               // 일정 + 버스 아이콘
