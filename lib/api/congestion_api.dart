@@ -39,10 +39,8 @@ class CongestionApi {
 
   /// 혼잡도 리포트 전송
   /// POST /api/congestion/report
+  /// AuthInterceptor가 자동으로 토큰을 추가하므로 별도 헤더 설정 불필요
   Future<CongestionReportResponse> reportCongestion(CongestionReportRequest request) async {
-    final opts = Options();
-    AuthService.I.attachAuthHeader(opts);
-
     if (kDebugMode) {
       print('혼잡도 리포트 전송: ${request.toJson()}');
     }
@@ -51,7 +49,6 @@ class CongestionApi {
       final resp = await _dio.post(
         '/api/congestion/report',
         data: request.toJson(),
-        options: opts,
       );
 
       if (kDebugMode) {
