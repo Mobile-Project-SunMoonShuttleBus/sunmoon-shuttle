@@ -504,8 +504,7 @@ class _MainScreenState extends State<MainScreen> {
                   setState(() {
                     _selectedIndex = 2;
                   });
-                  // 다른 탭으로 이동하면 혼잡도 추적 중지
-                  CongestionService.I.stopTracking();
+                  // 다른 탭으로 이동해도 추적은 계속 (백그라운드 지원)
                   // 포털 계정 정보 확인 후 분기
                   await _navigateToTimetable(context);
                 },
@@ -515,8 +514,7 @@ class _MainScreenState extends State<MainScreen> {
                 icon: Icons.settings,
                 isSelected: _selectedIndex == 3,
                 onTap: () {
-                  // 다른 탭으로 이동하면 혼잡도 추적 중지
-                  CongestionService.I.stopTracking();
+                  // 다른 탭으로 이동해도 추적은 계속 (백그라운드 지원)
                   // 설정 화면 열기
                   showDialog(
                     context: context,
