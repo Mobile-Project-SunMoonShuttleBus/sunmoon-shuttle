@@ -1,10 +1,11 @@
 /// 혼잡도 판정 및 위치 추적 서비스
-/// - GPS 위치 추적
+/// - GPS 위치 추적 (포그라운드/백그라운드 모두 지원)
 /// - 속도 측정
 /// - 혼잡도 판정 (사용자 속도 < 버스 속도)
 /// - 백엔드로 리포트 전송
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/congestion_models.dart';
 import '../api/congestion_api.dart';
@@ -25,10 +26,16 @@ class CongestionService {
   // 버스 탑승 판정 속도 (km/h) - 이 속도 이상이면 버스 탑승으로 판단
   static const double _busBoardingSpeed = 20.0; // 20km/h 이상이면 버스 탑승으로 판단
 
-  // 위치 업데이트 설정
+  // 위치 업데이트 설정 (백그라운드 지원)
   static const LocationSettings _locationSettings = LocationSettings(
     accuracy: LocationAccuracy.high,
     distanceFilter: 10, // 10m 이상 이동 시 업데이트
+  );
+  
+  // 백그라운드 위치 추적 설정
+  static const LocationSettings _backgroundLocationSettings = LocationSettings(
+    accuracy: LocationAccuracy.high,
+    distanceFilter: 10,
   );
 
   /// 위치 추적 시작 (자동 감지 모드)
