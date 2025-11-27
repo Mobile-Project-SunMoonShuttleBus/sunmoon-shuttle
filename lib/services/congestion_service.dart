@@ -24,12 +24,34 @@ class CongestionService {
   
   // 버스 탑승 판정 속도 (km/h) - 이 속도 이상이면 버스 탑승으로 판단
   static const double _busBoardingSpeed = 20.0; // 20km/h 이상이면 버스 탑승으로 판단
+  
+  // 버스 탑승 확인을 위한 연속 속도 체크 (최소 2회 연속)
+  int _consecutiveBusSpeedCount = 0;
+  static const int _minConsecutiveBusSpeed = 2; // 최소 2회 연속 버스 속도여야 탑승으로 판단
+  
+  // 혼잡도 리포트 전송 빈도 제한 (30초마다 최대 1회)
+  DateTime? _lastReportTime;
+  static const Duration _minReportInterval = Duration(seconds: 30);
+  
+  // 정지 상태 감지 (배터리 최적화)
+  int _stationaryCount = 0;
+  static const int _maxStationaryCount = 5; // 5회 연속 정지면 업데이트 빈도 감소
+  static const double _stationarySpeedThreshold = 2.0; // 2km/h 이하면 정지로 판단
+  
+  // 실패한 리포트 재시도 큐
+  final List<_PendingReport> _pendingReports = [];
+  static const int _maxRetries = 3;
 
   // 위치 업데이트 설정 (백그라운드 지원)
-  static const LocationSettings _locationSettings = LocationSettings(
-    accuracy: LocationAccuracy.high,
-    distanceFilter: 10, // 10m 이상 이동 시 업데이트
-  );
+  // 정지 상태에서는 distanceFilter를 늘려 배터리 절약
+  static LocationSettings get _locationSettings {
+    // 정지 상태면 50m, 이동 중이면 10m
+    final distanceFilter = _stationaryCount >= _maxStationaryCount ? 50.0 : 10.0;
+    return LocationSettings(
+      accuracy: LocationAccuracy.high,
+      distanceFilter: distanceFilter,
+    );
+  }
 
   /// 위치 추적 시작 (자동 감지 모드)
   /// 지도 화면에 있을 때 자동으로 호출
@@ -72,6 +94,10 @@ class CongestionService {
       _lastLocation = null;
       _currentRouteId = routeId ?? 'R001'; // 기본값 또는 자동 감지
       _currentStopId = stopId ?? 'S001'; // 기본값 또는 자동 감지
+      _consecutiveBusSpeedCount = 0;
+      _stationaryCount = 0;
+      _lastReportTime = null;
+      _pendingReports.clear();
 
       if (kDebugMode) {
         print('🔵 혼잡도 자동 위치 추적 시작');
@@ -110,6 +136,10 @@ class CongestionService {
     _positionStream = null;
     _lastLocation = null;
     _isTracking = false;
+    _consecutiveBusSpeedCount = 0;
+    _stationaryCount = 0;
+    _lastReportTime = null;
+    _pendingReports.clear();
 
     if (kDebugMode) {
       print('🔵 혼잡도 위치 추적 중지');
