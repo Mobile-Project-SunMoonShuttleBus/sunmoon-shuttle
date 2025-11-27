@@ -15,7 +15,7 @@ class ShuttleNoticeListScreen extends StatefulWidget {
 class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
   late final NoticeApi _api;
   late Future<List<ShuttleNoticeSummary>> _future;
-  bool _isSyncing = false;
+  bool _isReloading = false;
 
   @override
   void initState() {
@@ -25,61 +25,26 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
   }
 
   Future<void> _reload() async {
+    if (_isReloading) return;
+
     setState(() {
+      _isReloading = true;
       _future = _api.fetchShuttleNotices();
-    });
-    await _future;
-  }
-
-  Future<void> _syncNotices() async {
-    if (_isSyncing) return;
-
-    setState(() {
-      _isSyncing = true;
     });
 
     try {
+      await _future;
       if (kDebugMode) {
-        print('🔵 셔틀 공지 동기화 시작');
+        print('✅ 셔틀 공지 리스트 새로고침 완료');
       }
-
-      final result = await _api.syncShuttleNotices();
-      
-      if (kDebugMode) {
-        print('✅ 셔틀 공지 동기화 완료: $result');
-      }
-
-      if (!mounted) return;
-
-      // 동기화 성공 메시지 표시
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(result['message'] ?? '셔틀 공지 동기화가 완료되었습니다.'),
-          backgroundColor: Colors.green,
-          duration: const Duration(seconds: 2),
-        ),
-      );
-
-      // 목록 새로고침
-      await _reload();
     } catch (e) {
       if (kDebugMode) {
-        print('❌ 셔틀 공지 동기화 실패: $e');
+        print('❌ 셔틀 공지 리스트 새로고침 실패: $e');
       }
-
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('동기화 실패: ${e.toString()}'),
-          backgroundColor: Colors.red,
-          duration: const Duration(seconds: 3),
-        ),
-      );
     } finally {
       if (mounted) {
         setState(() {
-          _isSyncing = false;
+          _isReloading = false;
         });
       }
     }
@@ -91,7 +56,7 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
       appBar: AppBar(
         title: const Text('셔틀 공지'),
         actions: [
-          if (_isSyncing)
+          if (_isReloading)
             const Padding(
               padding: EdgeInsets.all(16.0),
               child: SizedBox(
@@ -102,9 +67,9 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
             )
           else
             IconButton(
-              icon: const Icon(Icons.sync),
-              tooltip: '공지 동기화',
-              onPressed: _syncNotices,
+              icon: const Icon(Icons.refresh),
+              tooltip: '새로고침',
+              onPressed: _reload,
             ),
         ],
       ),
@@ -179,21 +144,21 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
                         ),
                         const SizedBox(height: 24),
                         ElevatedButton.icon(
-                          onPressed: _isSyncing ? null : _syncNotices,
-                          icon: _isSyncing
+                          onPressed: _isReloading ? null : _reload,
+                          icon: _isReloading
                               ? const SizedBox(
                                   width: 16,
                                   height: 16,
                                   child: CircularProgressIndicator(strokeWidth: 2),
                                 )
-                              : const Icon(Icons.sync),
-                          label: Text(_isSyncing ? '동기화 중...' : '공지 동기화'),
+                              : const Icon(Icons.refresh),
+                          label: Text(_isReloading ? '새로고침 중...' : '새로고침'),
                         ),
                         const SizedBox(height: 8),
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 32.0),
                           child: Text(
-                            '포털에서 최신 공지를 가져와\n셔틀 관련 공지만 표시합니다.',
+                            '백엔드에서 매일 자동으로 동기화됩니다.\n새로고침 버튼으로 최신 공지를 확인하세요.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 12,
