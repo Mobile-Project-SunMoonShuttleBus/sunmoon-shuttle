@@ -5,7 +5,6 @@
 /// - 백엔드로 리포트 전송
 import 'dart:async';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/congestion_models.dart';
 import '../api/congestion_api.dart';
@@ -30,12 +29,6 @@ class CongestionService {
   static const LocationSettings _locationSettings = LocationSettings(
     accuracy: LocationAccuracy.high,
     distanceFilter: 10, // 10m 이상 이동 시 업데이트
-  );
-  
-  // 백그라운드 위치 추적 설정
-  static const LocationSettings _backgroundLocationSettings = LocationSettings(
-    accuracy: LocationAccuracy.high,
-    distanceFilter: 10,
   );
 
   /// 위치 추적 시작 (자동 감지 모드)
@@ -166,12 +159,18 @@ class CongestionService {
         print('🚌 혼잡도 판정: $congestionIndex (속도: ${speedMeasurement.speedKmh.toStringAsFixed(1)} km/h < 버스: $_busAverageSpeed km/h)');
       }
 
-      // 백엔드로 리포트 전송
-      _sendCongestionReport(
-        routeId: _currentRouteId!,
-        stopId: _currentStopId!,
-        index: congestionIndex,
-      );
+      // 백엔드로 리포트 전송 (null 체크)
+      if (_currentRouteId != null && _currentStopId != null) {
+        _sendCongestionReport(
+          routeId: _currentRouteId!,
+          stopId: _currentStopId!,
+          index: congestionIndex,
+        );
+      } else {
+        if (kDebugMode) {
+          print('⚠️ routeId 또는 stopId가 설정되지 않아 리포트를 전송하지 않습니다.');
+        }
+      }
     }
 
     _lastLocation = currentLocation;
