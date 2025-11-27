@@ -173,9 +173,14 @@ class CongestionService {
       print('📍 위치 업데이트: 계산속도 ${speedMeasurement.speedKmh.toStringAsFixed(1)} km/h, GPS속도 ${gpsSpeedKmh.toStringAsFixed(1)} km/h, 최종 ${finalSpeedKmh.toStringAsFixed(1)} km/h');
     }
 
-    // 정지 상태 감지 (배터리 최적화)
+    // 정지 상태 감지 (배터리 최적화: 정지 상태에서는 혼잡도 측정 안 함)
     if (finalSpeedKmh <= _stationarySpeedThreshold) {
       _stationaryCount++;
+      // 정지 상태가 지속되면 혼잡도 측정 안 함
+      if (_stationaryCount >= _maxStationaryCount) {
+        _lastLocation = currentLocation;
+        return;
+      }
     } else {
       _stationaryCount = 0; // 이동 중이면 카운터 리셋
     }
