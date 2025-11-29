@@ -76,30 +76,48 @@ class _PortalTimetableWebViewScreenState
       return;
     }
 
+    // JavaScript 문자열 이스케이프 처리
+    String escapeJs(String str) {
+      return str
+          .replaceAll('\\', '\\\\')
+          .replaceAll("'", "\\'")
+          .replaceAll('"', '\\"')
+          .replaceAll('\n', '\\n')
+          .replaceAll('\r', '\\r');
+    }
+
+    final escapedId = escapeJs(widget.schoolId!);
+    final escapedPw = escapeJs(widget.schoolPassword!);
+
     // JavaScript로 폼 필드에 값 입력 및 제출
     final script = '''
       (function() {
         // ID 필드 찾기 (일반적으로 name이나 id가 'txtID', 'userId', 'id' 등)
         var idField = document.querySelector('input[name="txtID"]') || 
                       document.querySelector('input[id*="ID"]') || 
+                      document.querySelector('input[id*="id"]') ||
                       document.querySelector('input[type="text"]');
         
         // 비밀번호 필드 찾기
         var pwField = document.querySelector('input[name="txtPW"]') || 
+                      document.querySelector('input[name="txtPassword"]') ||
                       document.querySelector('input[type="password"]');
         
         // 로그인 버튼 찾기
         var loginButton = document.querySelector('input[type="submit"]') || 
                           document.querySelector('button[type="submit"]') ||
-                          document.querySelector('button:contains("로그인")');
+                          document.querySelector('button.btn-login') ||
+                          document.querySelector('a.btn-login');
         
         if (idField && pwField) {
-          idField.value = '${widget.schoolId}';
-          pwField.value = '${widget.schoolPassword}';
+          idField.value = '$escapedId';
+          pwField.value = '$escapedPw';
           
           // 입력 이벤트 발생 (일부 사이트에서 필요)
           idField.dispatchEvent(new Event('input', { bubbles: true }));
+          idField.dispatchEvent(new Event('change', { bubbles: true }));
           pwField.dispatchEvent(new Event('input', { bubbles: true }));
+          pwField.dispatchEvent(new Event('change', { bubbles: true }));
           
           // 약간의 지연 후 제출 (페이지가 완전히 로드되도록)
           setTimeout(function() {
@@ -108,7 +126,7 @@ class _PortalTimetableWebViewScreenState
             } else if (idField.form) {
               idField.form.submit();
             }
-          }, 500);
+          }, 800);
         }
       })();
     ''';
