@@ -109,7 +109,7 @@ class AuthRepository {
   }
 
   /// 학교 포털 계정 저장
-  /// POST /auth/school-account
+  /// POST /api/auth/school-account
   /// 성공 시 { "message":"SAVED" } 반환, 실패 시 예외 발생
   Future<Map<String, dynamic>> saveSchoolAccount({
     required String schoolId,
