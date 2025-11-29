@@ -34,7 +34,7 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
 
   static const List<String> _orderedDays = ['월', '화', '수', '목', '금'];
   static const double _columnWidth = 140;
-  static const double _cellHeight = 60;
+  static const double _cellHeight = 50; // 셀 높이를 줄여서 19:00까지 표시 가능하도록
   static const int _startHour = 9;
   static const int _endHour = 20; // 9~19시까지 표시 (19:00까지)
 
@@ -329,43 +329,49 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
     final totalHeight = (_endHour - _startHour) * _cellHeight;
 
     return SingleChildScrollView(
-      scrollDirection: Axis.horizontal,
-      child: Padding(
-        padding: const EdgeInsets.only(bottom: 16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                SizedBox(
-                  width: 60,
-                  child: Column(
-                    children: [
-                      const SizedBox(height: 48),
-                      ..._timeSlots.map(
-                        (hour) => SizedBox(
-                          height: _cellHeight,
-                          child: Align(
-                            alignment: Alignment.topCenter,
-                            child: Text('$hour:00',
-                                style: const TextStyle(
-                                    fontSize: 12, color: Colors.grey)),
+      scrollDirection: Axis.vertical,
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Padding(
+          padding: const EdgeInsets.only(bottom: 16),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  SizedBox(
+                    width: 60,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const SizedBox(height: 48),
+                        ..._timeSlots.map(
+                          (hour) => SizedBox(
+                            height: _cellHeight,
+                            child: Align(
+                              alignment: Alignment.topCenter,
+                              child: Text('$hour',
+                                  style: const TextStyle(
+                                      fontSize: 11, color: Colors.grey)),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                ..._orderedDays.map(
-                  (day) => _buildDayColumn(
-                    day,
-                    _timetableData!.timetable[day] ?? [],
-                    totalHeight,
+                  ..._orderedDays.map(
+                    (day) => _buildDayColumn(
+                      day,
+                      _timetableData!.timetable[day] ?? [],
+                      totalHeight,
+                    ),
                   ),
-                ),
-              ],
-            ),
-          ],
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -427,17 +433,18 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                       right: 4,
                       height: (_blockHeight(subject) - 4).clamp(0.0, totalHeight - _topOffset(subject) - 4),
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+                        padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
                         decoration: BoxDecoration(
                           color: _subjectColorMap[subject.subjectName] ??
                               Colors.blue.shade100,
-                          borderRadius: BorderRadius.circular(8),
+                          borderRadius: BorderRadius.circular(6),
                           border: Border.all(
                             color: Colors.black.withOpacity(0.05),
                           ),
                         ),
                         child: LayoutBuilder(
                           builder: (context, constraints) {
+                            final availableHeight = constraints.maxHeight;
                             return Column(
                               mainAxisSize: MainAxisSize.min,
                               crossAxisAlignment: CrossAxisAlignment.start,
@@ -446,29 +453,29 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                                 Flexible(
                                   child: Text(
                                     subject.subjectName,
-                                    style: const TextStyle(
+                                    style: TextStyle(
                                       fontWeight: FontWeight.bold,
-                                      fontSize: 11,
+                                      fontSize: availableHeight > 45 ? 10 : 9,
                                     ),
-                                    maxLines: constraints.maxHeight > 50 ? 2 : 1,
+                                    maxLines: availableHeight > 50 ? 2 : 1,
                                     overflow: TextOverflow.ellipsis,
                                   ),
                                 ),
-                                if (constraints.maxHeight > 40) ...[
+                                if (availableHeight > 35) ...[
                                   const SizedBox(height: 1),
                                   Text(
                                     '${subject.startTime} ~ ${subject.endTime}',
-                                    style: const TextStyle(
-                                      fontSize: 9,
+                                    style: TextStyle(
+                                      fontSize: availableHeight > 50 ? 8 : 7,
                                       color: Colors.black87,
                                     ),
                                   ),
                                 ],
-                                if (constraints.maxHeight > 60) ...[
+                                if (availableHeight > 55) ...[
                                   Text(
                                     '${subject.location} · ${subject.professor}',
                                     style: const TextStyle(
-                                      fontSize: 8,
+                                      fontSize: 7,
                                       color: Colors.black54,
                                     ),
                                     maxLines: 1,
