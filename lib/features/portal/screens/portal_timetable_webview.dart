@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:webview_flutter/webview_flutter.dart';
 
 /// 포털 로그인 + 시간표 크롤링을 위한 WebView 화면
@@ -25,6 +26,8 @@ class _PortalTimetableWebViewScreenState
   late final WebViewController _controller;
   bool _isLoading = true;
   bool _hasAutoLoggedIn = false;
+  DateTime? _loginStartTime;
+  static const _loginTimeout = Duration(seconds: 30);
 
   @override
   void initState() {
@@ -35,11 +38,17 @@ class _PortalTimetableWebViewScreenState
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (url) {
+            if (kDebugMode) {
+              print('🌐 WebView 페이지 시작: $url');
+            }
             setState(() {
               _isLoading = true;
             });
           },
           onPageFinished: (url) async {
+            if (kDebugMode) {
+              print('✅ WebView 페이지 로드 완료: $url');
+            }
             setState(() {
               _isLoading = false;
             });
@@ -50,11 +59,17 @@ class _PortalTimetableWebViewScreenState
                 widget.schoolPassword != null &&
                 !_hasAutoLoggedIn) {
               _hasAutoLoggedIn = true;
+              _loginStartTime = DateTime.now();
               await _autoLogin();
+              // 타임아웃 체크 시작
+              _startLoginTimeoutCheck();
             }
 
             // 🔥 이 URL로 넘어가면 로그인 성공으로 간주
             if (url.contains('MainQ.aspx')) {
+              if (kDebugMode) {
+                print('✅ 로그인 성공: MainQ.aspx 도달');
+              }
               // 이 화면을 닫고, 성공 신호를 반환
               if (mounted) {
                 Navigator.of(context).pop({
@@ -63,6 +78,39 @@ class _PortalTimetableWebViewScreenState
               }
             }
           },
+          onWebResourceError: (WebResourceError error) {
+            if (kDebugMode) {
+              print('❌ WebView 리소스 에러: ${error.description}');
+              print('   URL: ${error.url}');
+              print('   에러 코드: ${error.errorCode}');
+            }
+            
+            // 심각한 에러인 경우 사용자에게 알림
+            if (error.errorCode == WebResourceErrorType.hostLookup.index ||
+                error.errorCode == WebResourceErrorType.timeout.index) {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('네트워크 연결에 실패했습니다. 다시 시도해주세요.'),
+                    backgroundColor: Colors.red,
+                    duration: Duration(seconds: 5),
+                  ),
+                );
+              }
+            }
+          },
+          onHttpError: (HttpResponseError error) {
+            if (kDebugMode) {
+              print('❌ WebView HTTP 에러: ${error.response?.statusCode}');
+              print('   URL: ${error.response?.uri}');
+            }
+          },
+          onNavigationRequest: (NavigationRequest request) {
+            if (kDebugMode) {
+              print('🧭 WebView 네비게이션 요청: ${request.url}');
+            }
+            return NavigationDecision.navigate;
+          },
         ),
       )
       ..loadRequest(
@@ -70,10 +118,39 @@ class _PortalTimetableWebViewScreenState
       );
   }
 
+  /// 로그인 타임아웃 체크
+  void _startLoginTimeoutCheck() {
+    Future.delayed(_loginTimeout, () {
+      if (mounted && _loginStartTime != null) {
+        final elapsed = DateTime.now().difference(_loginStartTime!);
+        if (elapsed >= _loginTimeout) {
+          if (kDebugMode) {
+            print('⏰ 로그인 타임아웃: ${_loginTimeout.inSeconds}초 경과');
+          }
+          // 타임아웃 시 사용자에게 알림
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('로그인이 시간 초과되었습니다. 수동으로 로그인해주세요.'),
+              backgroundColor: Colors.orange,
+              duration: Duration(seconds: 5),
+            ),
+          );
+        }
+      }
+    });
+  }
+
   /// WebView에서 자동 로그인 수행
   Future<void> _autoLogin() async {
     if (widget.schoolId == null || widget.schoolPassword == null) {
+      if (kDebugMode) {
+        print('⚠️ 자동 로그인 실패: ID 또는 비밀번호가 없습니다.');
+      }
       return;
+    }
+
+    if (kDebugMode) {
+      print('🔐 자동 로그인 시도 시작...');
     }
 
     // JavaScript 문자열 이스케이프 처리
@@ -90,26 +167,32 @@ class _PortalTimetableWebViewScreenState
     final escapedPw = escapeJs(widget.schoolPassword!);
 
     // JavaScript로 폼 필드에 값 입력 및 제출
+    // JavaScript 에러를 무시하도록 try-catch 추가
     final script = '''
       (function() {
-        // ID 필드 찾기 (일반적으로 name이나 id가 'txtID', 'userId', 'id' 등)
-        var idField = document.querySelector('input[name="txtID"]') || 
-                      document.querySelector('input[id*="ID"]') || 
-                      document.querySelector('input[id*="id"]') ||
-                      document.querySelector('input[type="text"]');
-        
-        // 비밀번호 필드 찾기
-        var pwField = document.querySelector('input[name="txtPW"]') || 
-                      document.querySelector('input[name="txtPassword"]') ||
-                      document.querySelector('input[type="password"]');
-        
-        // 로그인 버튼 찾기
-        var loginButton = document.querySelector('input[type="submit"]') || 
-                          document.querySelector('button[type="submit"]') ||
-                          document.querySelector('button.btn-login') ||
-                          document.querySelector('a.btn-login');
-        
-        if (idField && pwField) {
+        try {
+          // ID 필드 찾기 (일반적으로 name이나 id가 'txtID', 'userId', 'id' 등)
+          var idField = document.querySelector('input[name="txtID"]') || 
+                        document.querySelector('input[id*="ID"]') || 
+                        document.querySelector('input[id*="id"]') ||
+                        document.querySelector('input[type="text"]');
+          
+          // 비밀번호 필드 찾기
+          var pwField = document.querySelector('input[name="txtPW"]') || 
+                        document.querySelector('input[name="txtPassword"]') ||
+                        document.querySelector('input[type="password"]');
+          
+          // 로그인 버튼 찾기
+          var loginButton = document.querySelector('input[type="submit"]') || 
+                            document.querySelector('button[type="submit"]') ||
+                            document.querySelector('button.btn-login') ||
+                            document.querySelector('a.btn-login');
+          
+          if (!idField || !pwField) {
+            console.error('로그인 폼 필드를 찾을 수 없습니다.');
+            return;
+          }
+          
           idField.value = '$escapedId';
           pwField.value = '$escapedPw';
           
@@ -121,19 +204,33 @@ class _PortalTimetableWebViewScreenState
           
           // 약간의 지연 후 제출 (페이지가 완전히 로드되도록)
           setTimeout(function() {
-            if (loginButton) {
-              loginButton.click();
-            } else if (idField.form) {
-              idField.form.submit();
+            try {
+              if (loginButton) {
+                loginButton.click();
+              } else if (idField.form) {
+                idField.form.submit();
+              } else {
+                console.error('로그인 버튼을 찾을 수 없습니다.');
+              }
+            } catch (e) {
+              console.error('로그인 제출 중 에러:', e);
             }
           }, 800);
+        } catch (e) {
+          console.error('자동 로그인 스크립트 에러:', e);
         }
       })();
     ''';
 
     try {
       await _controller.runJavaScript(script);
+      if (kDebugMode) {
+        print('✅ 자동 로그인 스크립트 실행 완료');
+      }
     } catch (e) {
+      if (kDebugMode) {
+        print('❌ 자동 로그인 스크립트 실행 실패: $e');
+      }
       // JavaScript 실행 실패 시 사용자가 수동으로 로그인할 수 있도록 함
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
