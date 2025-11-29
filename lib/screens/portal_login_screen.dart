@@ -385,6 +385,7 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
     final idController = TextEditingController();
     final pwController = TextEditingController();
     bool isSubmitting = false;
+    String? errorMessage;
 
     return showDialog<bool>(
       context: context,
@@ -397,39 +398,69 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
               final password = pwController.text;
 
               if (schoolId.isEmpty || password.isEmpty) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('학번과 비밀번호를 모두 입력해주세요.'),
-                    backgroundColor: Colors.red,
-                  ),
-                );
+                setStateDialog(() {
+                  errorMessage = '학번과 비밀번호를 모두 입력해주세요.';
+                });
                 return;
               }
 
               setStateDialog(() {
                 isSubmitting = true;
+                errorMessage = null;
               });
 
               try {
-                await AuthRepository.I.saveSchoolAccount(
+                final result = await AuthRepository.I.saveSchoolAccount(
                   schoolId: schoolId,
                   schoolPassword: password,
                 );
+                
+                if (kDebugMode) {
+                  print('✅ 포털 계정 저장 성공: $result');
+                }
+                
                 if (mounted) {
                   Navigator.of(dialogContext).pop(true);
                 }
-              } catch (e) {
-                if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('계정 정보 저장 실패: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+              } on DioException catch (e) {
+                String errorMsg = '계정 정보 저장 실패';
+                if (e.response != null) {
+                  final errorData = e.response?.data;
+                  if (errorData is Map) {
+                    errorMsg = errorData['message']?.toString() ?? 
+                              errorData['error']?.toString() ?? 
+                              '계정 정보 저장 실패';
+                  } else if (errorData is String) {
+                    errorMsg = errorData;
+                  }
+                  
+                  if (kDebugMode) {
+                    print('❌ 포털 계정 저장 실패: ${e.response?.statusCode}');
+                    print('응답 데이터: $errorData');
+                  }
+                } else {
+                  if (kDebugMode) {
+                    print('❌ 포털 계정 저장 실패: ${e.message}');
+                  }
+                  errorMsg = '네트워크 오류가 발생했습니다. 다시 시도해주세요.';
                 }
-                setStateDialog(() {
-                  isSubmitting = false;
-                });
+                
+                if (mounted) {
+                  setStateDialog(() {
+                    isSubmitting = false;
+                    errorMessage = errorMsg;
+                  });
+                }
+              } catch (e) {
+                if (kDebugMode) {
+                  print('❌ 포털 계정 저장 예외: $e');
+                }
+                if (mounted) {
+                  setStateDialog(() {
+                    isSubmitting = false;
+                    errorMessage = '계정 정보 저장 중 오류가 발생했습니다: ${e.toString()}';
+                  });
+                }
               }
             }
 
@@ -441,12 +472,13 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     const Text(
-                      '포털 계정을 입력하면 서버 DB에 안전하게 저장되고 10~30초 내 자동으로 시간표가 크롤링됩니다.',
+                      '포털 로그인에 성공했습니다. 계정 정보를 입력하면 서버 DB에 안전하게 저장되고 10~30초 내 자동으로 시간표가 크롤링됩니다.',
                     ),
                     const SizedBox(height: 16),
                     TextField(
                       controller: idController,
                       keyboardType: TextInputType.text,
+                      enabled: !isSubmitting,
                       decoration: const InputDecoration(
                         labelText: '학번 또는 포털 ID',
                         border: OutlineInputBorder(),
@@ -457,12 +489,36 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                     TextField(
                       controller: pwController,
                       obscureText: true,
+                      enabled: !isSubmitting,
                       decoration: const InputDecoration(
                         labelText: '포털 비밀번호',
                         border: OutlineInputBorder(),
                         prefixIcon: Icon(Icons.lock),
                       ),
                     ),
+                    if (errorMessage != null) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.error_outline, color: Colors.red, size: 20),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                errorMessage!,
+                                style: const TextStyle(color: Colors.red, fontSize: 14),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -475,11 +531,18 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                 ),
                 ElevatedButton(
                   onPressed: isSubmitting ? null : submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: const Color(0xFF1890FF),
+                    foregroundColor: Colors.white,
+                  ),
                   child: isSubmitting
                       ? const SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                          ),
                         )
                       : const Text('저장'),
                 ),
