@@ -273,37 +273,6 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
 
   List<int> get _timeSlots =>
       List.generate(_endHour - _startHour, (index) => _startHour + index);
-}
-
-/// 시간대 구분선을 그리는 CustomPainter
-class _TimeSlotPainter extends CustomPainter {
-  final double cellHeight;
-  final int numSlots;
-
-  _TimeSlotPainter({
-    required this.cellHeight,
-    required this.numSlots,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final paint = Paint()
-      ..color = Colors.grey.shade200
-      ..strokeWidth = 1.0;
-
-    // 각 시간대마다 하단에 선 그리기 (마지막은 제외)
-    for (int i = 0; i < numSlots - 1; i++) {
-      final y = (i + 1) * cellHeight;
-      canvas.drawLine(
-        Offset(0, y),
-        Offset(size.width, y),
-        paint,
-      );
-    }
-  }
-
-  @override
-  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 
   @override
   Widget build(BuildContext context) {
@@ -580,5 +549,35 @@ class _TimeSlotPainter extends CustomPainter {
       },
     );
   }
+}
 
+/// 시간대 구분선을 그리는 CustomPainter
+class _TimeSlotPainter extends CustomPainter {
+  final double cellHeight;
+  final int numSlots;
+
+  _TimeSlotPainter({
+    required this.cellHeight,
+    required this.numSlots,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.grey.shade200
+      ..strokeWidth = 1.0;
+
+    // 각 시간대마다 하단에 선 그리기 (마지막은 제외)
+    for (int i = 0; i < numSlots - 1; i++) {
+      final y = (i + 1) * cellHeight;
+      canvas.drawLine(
+        Offset(0, y),
+        Offset(size.width, y),
+        paint,
+      );
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }
