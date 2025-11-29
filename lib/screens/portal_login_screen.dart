@@ -135,10 +135,27 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
     try {
       var response = await TimetableApi.I.getTimetable();
 
+      if (kDebugMode) {
+        print('📋 초기 시간표 조회: status=${response.crawlingStatus}, count=${response.count}');
+      }
+
+      // 크롤링 대기가 필요하고 아직 완료되지 않은 경우
       if (waitForCrawling && response.crawlingStatus != 'completed') {
+        if (kDebugMode) {
+          print('⏳ 크롤링 완료 대기 시작...');
+        }
         final completed = await _waitForCrawlingComplete(response);
         if (completed != null) {
           response = completed;
+          if (kDebugMode) {
+            print('✅ 크롤링 완료 후 최신 데이터: count=${response.count}');
+          }
+        } else {
+          // 대기 시간 초과 시 최신 데이터 다시 가져오기
+          response = await TimetableApi.I.getTimetable();
+          if (kDebugMode) {
+            print('📋 대기 후 최신 데이터: status=${response.crawlingStatus}, count=${response.count}');
+          }
         }
       }
 
@@ -146,10 +163,18 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
       if (mounted) {
         setState(() {
           _timetableData = response;
+          _isLoadingTimetable = false;
         });
+        
+        if (kDebugMode) {
+          print('✅ 시간표 UI 업데이트 완료: ${response.count}개 과목');
+        }
       }
     } on DioException catch (e) {
       if (!mounted) return;
+      setState(() {
+        _isLoadingTimetable = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('시간표를 불러오지 못했습니다: ${e.message}'),
@@ -158,18 +183,15 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
       );
     } catch (e) {
       if (!mounted) return;
+      setState(() {
+        _isLoadingTimetable = false;
+      });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('시간표를 불러오지 못했습니다: $e'),
           backgroundColor: Colors.red,
         ),
       );
-    } finally {
-      if (mounted) {
-        setState(() {
-          _isLoadingTimetable = false;
-        });
-      }
     }
   }
 
@@ -347,6 +369,7 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
       width: _columnWidth,
       margin: const EdgeInsets.only(right: 8),
       child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
           Container(
             height: 48,
@@ -372,9 +395,11 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
               borderRadius: BorderRadius.circular(8),
             ),
             child: Stack(
+              clipBehavior: Clip.none,
               children: [
                 Positioned.fill(
                   child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     children: List.generate(
                       _endHour - _startHour,
                       (index) => Container(
@@ -406,37 +431,40 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                           color: Colors.black.withOpacity(0.05),
                         ),
                       ),
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Text(
-                            subject.subjectName,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
+                      child: SingleChildScrollView(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              subject.subjectName,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                              ),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            '${subject.startTime} ~ ${subject.endTime}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.black87,
+                            const SizedBox(height: 2),
+                            Text(
+                              '${subject.startTime} ~ ${subject.endTime}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.black87,
+                              ),
                             ),
-                          ),
-                          Text(
-                            '${subject.location} · ${subject.professor}',
-                            style: const TextStyle(
-                              fontSize: 11,
-                              color: Colors.black54,
+                            Text(
+                              '${subject.location} · ${subject.professor}',
+                              style: const TextStyle(
+                                fontSize: 11,
+                                color: Colors.black54,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
+                          ],
+                        ),
                       ),
                     ),
                   ),
