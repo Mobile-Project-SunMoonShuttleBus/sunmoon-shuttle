@@ -28,8 +28,8 @@ class AuthApi {
     
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 8),
-      receiveTimeout: const Duration(seconds: 8),
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 30), // 크롤링 시작 응답을 기다리기 위해 증가
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json', // JSON만 받도록 명시 (Swagger HTML 방지)

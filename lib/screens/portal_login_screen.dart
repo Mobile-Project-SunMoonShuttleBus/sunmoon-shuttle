@@ -36,7 +36,7 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
   static const double _columnWidth = 140;
   static const double _cellHeight = 60;
   static const int _startHour = 9;
-  static const int _endHour = 19; // 9~18시까지 표시
+  static const int _endHour = 20; // 9~19시까지 표시 (19:00까지)
 
   Future<void> _openPortalWebView() async {
     // 먼저 ID/PW를 입력받음
