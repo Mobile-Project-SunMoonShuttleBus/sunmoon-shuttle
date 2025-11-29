@@ -421,6 +421,85 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
     );
   }
 
+  /// 먼저 ID/PW를 입력받는 다이얼로그
+  Future<Map<String, String>?> _showPortalAccountInputDialog() async {
+    final idController = TextEditingController();
+    final pwController = TextEditingController();
+
+    return showDialog<Map<String, String>>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: const Text('포털 로그인'),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '포털 계정 정보를 입력해주세요. 로그인 후 서버에 저장됩니다.',
+                ),
+                const SizedBox(height: 16),
+                TextField(
+                  controller: idController,
+                  keyboardType: TextInputType.text,
+                  decoration: const InputDecoration(
+                    labelText: '학번 또는 포털 ID',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.person),
+                  ),
+                ),
+                const SizedBox(height: 12),
+                TextField(
+                  controller: pwController,
+                  obscureText: true,
+                  decoration: const InputDecoration(
+                    labelText: '포털 비밀번호',
+                    border: OutlineInputBorder(),
+                    prefixIcon: Icon(Icons.lock),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(null),
+              child: const Text('취소'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                final schoolId = idController.text.trim();
+                final password = pwController.text;
+
+                if (schoolId.isEmpty || password.isEmpty) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('학번과 비밀번호를 모두 입력해주세요.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                  return;
+                }
+
+                Navigator.of(dialogContext).pop({
+                  'schoolId': schoolId,
+                  'schoolPassword': password,
+                });
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF1890FF),
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('로그인'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   Future<bool?> _showPortalAccountSaveDialog() async {
     final idController = TextEditingController();
     final pwController = TextEditingController();

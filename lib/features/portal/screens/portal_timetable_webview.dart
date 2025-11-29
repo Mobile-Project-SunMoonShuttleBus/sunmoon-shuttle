@@ -3,9 +3,17 @@ import 'package:webview_flutter/webview_flutter.dart';
 
 /// 포털 로그인 + 시간표 크롤링을 위한 WebView 화면
 /// - Login.aspx 로 시작
+/// - ID/PW를 받아서 자동 로그인
 /// - MainQ.aspx 로 넘어가면 "로그인 성공"으로 판단하고 Navigator.pop(true)
 class PortalTimetableWebViewScreen extends StatefulWidget {
-  const PortalTimetableWebViewScreen({super.key});
+  final String? schoolId;
+  final String? schoolPassword;
+
+  const PortalTimetableWebViewScreen({
+    super.key,
+    this.schoolId,
+    this.schoolPassword,
+  });
 
   @override
   State<PortalTimetableWebViewScreen> createState() =>
@@ -16,6 +24,7 @@ class _PortalTimetableWebViewScreenState
     extends State<PortalTimetableWebViewScreen> {
   late final WebViewController _controller;
   bool _isLoading = true;
+  bool _hasAutoLoggedIn = false;
 
   @override
   void initState() {
@@ -30,16 +39,27 @@ class _PortalTimetableWebViewScreenState
               _isLoading = true;
             });
           },
-          onPageFinished: (url) {
+          onPageFinished: (url) async {
             setState(() {
               _isLoading = false;
             });
 
+            // 로그인 페이지가 로드되었고, ID/PW가 제공되었으며, 아직 자동 로그인을 하지 않은 경우
+            if (url.contains('Login.aspx') && 
+                widget.schoolId != null && 
+                widget.schoolPassword != null &&
+                !_hasAutoLoggedIn) {
+              _hasAutoLoggedIn = true;
+              await _autoLogin();
+            }
+
             // 🔥 이 URL로 넘어가면 로그인 성공으로 간주
             if (url.contains('MainQ.aspx')) {
-              // 이 화면을 닫고, true 를 반환 (로그인 성공 신호)
+              // 이 화면을 닫고, 성공 신호를 반환
               if (mounted) {
-                Navigator.of(context).pop(true);
+                Navigator.of(context).pop({
+                  'success': true,
+                });
               }
             }
           },
@@ -48,6 +68,64 @@ class _PortalTimetableWebViewScreenState
       ..loadRequest(
         Uri.parse('https://sws.sunmoon.ac.kr/Login.aspx'),
       );
+  }
+
+  /// WebView에서 자동 로그인 수행
+  Future<void> _autoLogin() async {
+    if (widget.schoolId == null || widget.schoolPassword == null) {
+      return;
+    }
+
+    // JavaScript로 폼 필드에 값 입력 및 제출
+    final script = '''
+      (function() {
+        // ID 필드 찾기 (일반적으로 name이나 id가 'txtID', 'userId', 'id' 등)
+        var idField = document.querySelector('input[name="txtID"]') || 
+                      document.querySelector('input[id*="ID"]') || 
+                      document.querySelector('input[type="text"]');
+        
+        // 비밀번호 필드 찾기
+        var pwField = document.querySelector('input[name="txtPW"]') || 
+                      document.querySelector('input[type="password"]');
+        
+        // 로그인 버튼 찾기
+        var loginButton = document.querySelector('input[type="submit"]') || 
+                          document.querySelector('button[type="submit"]') ||
+                          document.querySelector('button:contains("로그인")');
+        
+        if (idField && pwField) {
+          idField.value = '${widget.schoolId}';
+          pwField.value = '${widget.schoolPassword}';
+          
+          // 입력 이벤트 발생 (일부 사이트에서 필요)
+          idField.dispatchEvent(new Event('input', { bubbles: true }));
+          pwField.dispatchEvent(new Event('input', { bubbles: true }));
+          
+          // 약간의 지연 후 제출 (페이지가 완전히 로드되도록)
+          setTimeout(function() {
+            if (loginButton) {
+              loginButton.click();
+            } else if (idField.form) {
+              idField.form.submit();
+            }
+          }, 500);
+        }
+      })();
+    ''';
+
+    try {
+      await _controller.runJavaScript(script);
+    } catch (e) {
+      // JavaScript 실행 실패 시 사용자가 수동으로 로그인할 수 있도록 함
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('자동 로그인에 실패했습니다. 수동으로 로그인해주세요.'),
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+    }
   }
 
   @override
