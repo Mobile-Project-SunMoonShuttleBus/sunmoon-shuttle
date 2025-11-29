@@ -394,57 +394,61 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
               border: Border.all(color: Colors.grey.shade300),
               borderRadius: BorderRadius.circular(8),
             ),
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Positioned.fill(
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: List.generate(
-                      _endHour - _startHour,
-                      (index) => Container(
-                        height: _cellHeight,
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(
-                              color: Colors.grey.shade200,
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(8),
+              child: Stack(
+                clipBehavior: Clip.hardEdge,
+                children: [
+                  // 시간대 구분선
+                  Positioned.fill(
+                    child: Column(
+                      children: List.generate(
+                        _endHour - _startHour,
+                        (index) => Container(
+                          height: _cellHeight,
+                          decoration: BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: Colors.grey.shade200,
+                              ),
                             ),
                           ),
                         ),
                       ),
                     ),
                   ),
-                ),
-                for (final subject in subjects)
-                  Positioned(
-                    top: _topOffset(subject),
-                    left: 4,
-                    right: 4,
-                    height: _blockHeight(subject) - 4,
-                    child: Container(
-                      padding: const EdgeInsets.all(6),
-                      decoration: BoxDecoration(
-                        color: _subjectColorMap[subject.subjectName] ??
-                            Colors.blue.shade100,
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: Colors.black.withOpacity(0.05),
+                  // 과목 블록들
+                  for (final subject in subjects)
+                    Positioned(
+                      top: _topOffset(subject),
+                      left: 4,
+                      right: 4,
+                      height: (_blockHeight(subject) - 4).clamp(0.0, totalHeight - _topOffset(subject) - 4),
+                      child: Container(
+                        padding: const EdgeInsets.all(6),
+                        decoration: BoxDecoration(
+                          color: _subjectColorMap[subject.subjectName] ??
+                              Colors.blue.shade100,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(
+                            color: Colors.black.withOpacity(0.05),
+                          ),
                         ),
-                      ),
-                      child: SingleChildScrollView(
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
-                            Text(
-                              subject.subjectName,
-                              style: const TextStyle(
-                                fontWeight: FontWeight.bold,
-                                fontSize: 13,
+                            Flexible(
+                              child: Text(
+                                subject.subjectName,
+                                style: const TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 13,
+                                ),
+                                maxLines: 2,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              maxLines: 2,
-                              overflow: TextOverflow.ellipsis,
                             ),
                             const SizedBox(height: 2),
                             Text(
@@ -467,8 +471,8 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                         ),
                       ),
                     ),
-                  ),
-              ],
+                ],
+              ),
             ),
           ),
         ],
