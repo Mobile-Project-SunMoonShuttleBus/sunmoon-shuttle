@@ -140,21 +140,30 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
       }
 
       // 크롤링 대기가 필요하고 아직 완료되지 않은 경우
+      // 하지만 데이터가 이미 있으면 (count > 0) 바로 표시
       if (waitForCrawling && response.crawlingStatus != 'completed') {
-        if (kDebugMode) {
-          print('⏳ 크롤링 완료 대기 시작...');
-        }
-        final completed = await _waitForCrawlingComplete(response);
-        if (completed != null) {
-          response = completed;
+        // 데이터가 이미 있으면 바로 표시
+        if (response.count > 0) {
           if (kDebugMode) {
-            print('✅ 크롤링 완료 후 최신 데이터: count=${response.count}');
+            print('✅ 데이터가 이미 있음 (count: ${response.count}). 바로 표시합니다.');
           }
         } else {
-          // 대기 시간 초과 시 최신 데이터 다시 가져오기
-          response = await TimetableApi.I.getTimetable();
+          // 데이터가 없으면 크롤링 완료 대기
           if (kDebugMode) {
-            print('📋 대기 후 최신 데이터: status=${response.crawlingStatus}, count=${response.count}');
+            print('⏳ 크롤링 완료 대기 시작...');
+          }
+          final completed = await _waitForCrawlingComplete(response);
+          if (completed != null) {
+            response = completed;
+            if (kDebugMode) {
+              print('✅ 크롤링 완료 후 최신 데이터: count=${response.count}');
+            }
+          } else {
+            // 대기 시간 초과 시 최신 데이터 다시 가져오기
+            response = await TimetableApi.I.getTimetable();
+            if (kDebugMode) {
+              print('📋 대기 후 최신 데이터: status=${response.crawlingStatus}, count=${response.count}');
+            }
           }
         }
       }
@@ -217,10 +226,10 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
           print('📊 크롤링 상태 확인: ${latest.crawlingStatus}, count: ${latest.count}');
         }
         
-        // 크롤링이 완료되었으면 반환 (count > 0이거나 completed 상태면)
-        if (latest.crawlingStatus == 'completed') {
+        // 크롤링이 완료되었거나 데이터가 있으면 반환
+        if (latest.crawlingStatus == 'completed' || latest.count > 0) {
           if (kDebugMode) {
-            print('✅ 크롤링 완료: ${latest.count}개 과목');
+            print('✅ 크롤링 완료 또는 데이터 있음: status=${latest.crawlingStatus}, count=${latest.count}개 과목');
           }
           return latest;
         }
@@ -276,8 +285,10 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final hasData =
-        _timetableData != null && _timetableData!.timetable.isNotEmpty;
+    // 데이터가 있고 count > 0이면 표시 (crawling 상태여도 데이터가 있으면 표시)
+    final hasData = _timetableData != null && 
+                    _timetableData!.count > 0 && 
+                    _timetableData!.timetable.isNotEmpty;
 
     return Scaffold(
       appBar: AppBar(

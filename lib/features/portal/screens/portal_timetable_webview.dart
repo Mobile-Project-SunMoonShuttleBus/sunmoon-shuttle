@@ -66,10 +66,13 @@ class _PortalTimetableWebViewScreenState
             }
 
             // 🔥 이 URL로 넘어가면 로그인 성공으로 간주
+            // MainQ.aspx는 포털 메인 페이지이므로, 로그인 성공 후 바로 WebView를 닫음
             if (url.contains('MainQ.aspx')) {
               if (kDebugMode) {
-                print('✅ 로그인 성공: MainQ.aspx 도달');
+                print('✅ 로그인 성공: MainQ.aspx 도달 - WebView 닫기');
               }
+              // 약간의 지연 후 WebView를 닫아서 사용자가 메인 페이지를 보지 않도록 함
+              await Future.delayed(const Duration(milliseconds: 500));
               // 이 화면을 닫고, 성공 신호를 반환
               if (mounted) {
                 Navigator.of(context).pop({
