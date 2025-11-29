@@ -39,53 +39,92 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
   static const int _endHour = 19; // 9~18시까지 표시
 
   Future<void> _openPortalWebView() async {
-    // WebView 화면으로 이동, 로그인 성공 시 true 반환 기대
-    final result = await Navigator.push<bool>(
+    // 먼저 ID/PW를 입력받음
+    final accountInfo = await _showPortalAccountInputDialog();
+    
+    if (accountInfo == null) {
+      // 사용자가 취소한 경우
+      return;
+    }
+
+    // WebView 화면으로 이동하면서 ID/PW 전달, 로그인 성공 시 true 반환 기대
+    final result = await Navigator.push<Map<String, dynamic>?>(
       context,
       MaterialPageRoute(
-        builder: (_) => const PortalTimetableWebViewScreen(),
+        builder: (_) => PortalTimetableWebViewScreen(
+          schoolId: accountInfo['schoolId'] as String,
+          schoolPassword: accountInfo['schoolPassword'] as String,
+        ),
       ),
     );
 
-    if (result == true) {
-      await _handlePortalLoginSuccess();
+    if (result != null && result['success'] == true) {
+      // 로그인 성공 시 입력받은 정보를 서버에 저장
+      await _handlePortalLoginSuccess(
+        schoolId: accountInfo['schoolId'] as String,
+        schoolPassword: accountInfo['schoolPassword'] as String,
+      );
     } else {
       if (!mounted) return;
 
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('포털 로그인에 실패했거나 취소되었습니다.')),
+        const SnackBar(
+          content: Text('포털 로그인에 실패했거나 취소되었습니다.'),
+          backgroundColor: Colors.red,
+        ),
       );
     }
   }
 
-  Future<void> _handlePortalLoginSuccess() async {
+  Future<void> _handlePortalLoginSuccess({
+    required String schoolId,
+    required String schoolPassword,
+  }) async {
     if (!mounted) return;
 
-    // WebView에서 로그인 성공 후 계정 정보를 한 번만 입력받아 저장
-    final saved = await _showPortalAccountSaveDialog();
-
-    if (saved != true) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('계정 정보 저장이 취소되었습니다. 나중에 다시 시도해주세요.'),
-          backgroundColor: Colors.orange,
-        ),
-      );
-      return;
-    }
-
-    if (!mounted) return;
-
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('계정 정보가 서버에 저장되었습니다. 자동 크롤링이 실행됩니다. (약 10~30초)'),
-        duration: Duration(seconds: 4),
-        backgroundColor: Colors.green,
+    // 로딩 표시
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(),
       ),
     );
 
-    await _fetchTimetableFromServer(waitForCrawling: true);
+    try {
+      // 입력받은 정보를 서버에 저장
+      await AuthRepository.I.saveSchoolAccount(
+        schoolId: schoolId,
+        schoolPassword: schoolPassword,
+      );
+
+      if (kDebugMode) {
+        print('✅ 포털 계정 저장 성공');
+      }
+
+      if (!mounted) return;
+      Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('계정 정보가 서버에 저장되었습니다. 자동 크롤링이 실행됩니다. (약 10~30초)'),
+          duration: Duration(seconds: 4),
+          backgroundColor: Colors.green,
+        ),
+      );
+
+      await _fetchTimetableFromServer(waitForCrawling: true);
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('계정 정보 저장 실패: ${e.toString()}'),
+          backgroundColor: Colors.red,
+        ),
+      );
+    }
   }
 
   Future<void> _fetchTimetableFromServer({bool waitForCrawling = false}) async {
