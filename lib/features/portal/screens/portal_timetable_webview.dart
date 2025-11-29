@@ -41,6 +41,24 @@ class _PortalTimetableWebViewScreenState
             if (kDebugMode) {
               print('🌐 WebView 페이지 시작: $url');
             }
+            
+            // 🔥 MainQ.aspx로 이동하는 것을 감지하면 즉시 WebView를 닫음
+            // 페이지가 로드되기 전에 닫아서 사용자가 메인 페이지를 보지 않도록 함
+            if (url.contains('MainQ.aspx')) {
+              if (kDebugMode) {
+                print('✅ 로그인 성공: MainQ.aspx 감지 - 즉시 WebView 닫기');
+              }
+              // 페이지 로드 전에 바로 닫기
+              Future.microtask(() {
+                if (mounted) {
+                  Navigator.of(context).pop({
+                    'success': true,
+                  });
+                }
+              });
+              return;
+            }
+            
             setState(() {
               _isLoading = true;
             });
@@ -49,6 +67,12 @@ class _PortalTimetableWebViewScreenState
             if (kDebugMode) {
               print('✅ WebView 페이지 로드 완료: $url');
             }
+            
+            // MainQ.aspx는 이미 onPageStarted에서 처리했으므로 여기서는 무시
+            if (url.contains('MainQ.aspx')) {
+              return;
+            }
+            
             setState(() {
               _isLoading = false;
             });
@@ -63,22 +87,6 @@ class _PortalTimetableWebViewScreenState
               await _autoLogin();
               // 타임아웃 체크 시작
               _startLoginTimeoutCheck();
-            }
-
-            // 🔥 이 URL로 넘어가면 로그인 성공으로 간주
-            // MainQ.aspx는 포털 메인 페이지이므로, 로그인 성공 후 바로 WebView를 닫음
-            if (url.contains('MainQ.aspx')) {
-              if (kDebugMode) {
-                print('✅ 로그인 성공: MainQ.aspx 도달 - WebView 닫기');
-              }
-              // 약간의 지연 후 WebView를 닫아서 사용자가 메인 페이지를 보지 않도록 함
-              await Future.delayed(const Duration(milliseconds: 500));
-              // 이 화면을 닫고, 성공 신호를 반환
-              if (mounted) {
-                Navigator.of(context).pop({
-                  'success': true,
-                });
-              }
             }
           },
           onWebResourceError: (WebResourceError error) {
