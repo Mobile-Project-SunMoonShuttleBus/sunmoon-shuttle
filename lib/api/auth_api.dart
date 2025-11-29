@@ -276,8 +276,29 @@ class AuthApi {
       body['pref'] = pref;
     }
     
-    final resp = await _dio.patch('/api/users/me', data: body, options: opts);
-    return Map<String, dynamic>.from(resp.data);
+    try {
+      final resp = await _dio.patch('/api/users/me', data: body, options: opts);
+      
+      // 응답이 Map인 경우
+      if (resp.data is Map<String, dynamic>) {
+        return Map<String, dynamic>.from(resp.data);
+      }
+      
+      // 응답이 String인 경우
+      if (resp.data is String) {
+        return {'message': resp.data as String};
+      }
+      
+      // 예상치 못한 형식이지만 200이면 성공으로 처리
+      return {'message': 'UPDATED'};
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ updateMe 실패: ${e.message}');
+        print('응답 상태 코드: ${e.response?.statusCode}');
+        print('응답 데이터: ${e.response?.data}');
+      }
+      rethrow;
+    }
   }
 
   /// 학교 포털 계정 저장
