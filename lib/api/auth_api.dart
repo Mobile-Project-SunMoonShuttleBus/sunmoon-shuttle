@@ -289,7 +289,9 @@ class AuthApi {
     required String schoolId,
     required String schoolPassword,
   }) async {
-    final opts = Options();
+    final opts = Options(
+      receiveTimeout: const Duration(seconds: 30), // 크롤링 시작 응답을 기다리기 위해 타임아웃 증가
+    );
     AuthService.I.attachAuthHeader(opts);
     
     final body = <String, dynamic>{
