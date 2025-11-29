@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:dio/dio.dart';
 import 'package:sunmoon_shuttle/api/timetable_api.dart';
 import 'package:sunmoon_shuttle/features/portal/screens/portal_timetable_webview.dart';
