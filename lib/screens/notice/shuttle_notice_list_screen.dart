@@ -72,10 +72,23 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
       }
     } catch (e) {
       if (mounted) {
+        String errorMessage = '동기화 실패';
+        String errorDetail = e.toString();
+        
+        // 백엔드 타임아웃 에러인 경우 명확한 메시지 표시
+        if (errorDetail.contains('동기화 작업 시간 초과') || 
+            errorDetail.contains('시간 초과')) {
+          errorMessage = '서버에서 동기화 작업이 시간 초과되었습니다.\n백엔드 문제로 보입니다. 잠시 후 다시 시도해주세요.';
+        } else if (errorDetail.contains('동기화 진행 중')) {
+          errorMessage = '이미 동기화가 진행 중입니다.\n잠시 후 다시 시도해주세요.';
+        } else {
+          errorMessage = '동기화 실패: $errorDetail';
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('동기화 실패: ${e.toString()}'),
-            duration: const Duration(seconds: 3),
+            content: Text(errorMessage),
+            duration: const Duration(seconds: 5),
             backgroundColor: Colors.red,
           ),
         );
