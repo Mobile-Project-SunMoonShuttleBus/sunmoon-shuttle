@@ -27,7 +27,7 @@ class _PortalTimetableWebViewScreenState
   bool _isLoading = true;
   bool _hasAutoLoggedIn = false;
   DateTime? _loginStartTime;
-  static const _loginTimeout = Duration(seconds: 30);
+  static const _loginTimeout = Duration(seconds: 60); // 30초 → 60초로 증가
 
   @override
   void initState() {

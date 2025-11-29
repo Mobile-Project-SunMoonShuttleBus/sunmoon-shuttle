@@ -199,7 +199,7 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
     TimetableResponse initial,
   ) async {
     var latest = initial;
-    final maxWait = Duration(seconds: 40);
+    final maxWait = Duration(seconds: 90); // 40초 → 90초로 증가 (크롤링이 느릴 수 있음)
     final pollInterval = Duration(seconds: 3);
     final startedAt = DateTime.now();
 
