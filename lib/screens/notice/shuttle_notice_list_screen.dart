@@ -201,6 +201,18 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
                         ),
                         const SizedBox(height: 24),
                         ElevatedButton.icon(
+                          onPressed: _isSyncing ? null : _syncNotices,
+                          icon: _isSyncing
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(strokeWidth: 2),
+                                )
+                              : const Icon(Icons.sync),
+                          label: Text(_isSyncing ? '동기화 중...' : '동기화'),
+                        ),
+                        const SizedBox(height: 8),
+                        ElevatedButton.icon(
                           onPressed: _isReloading ? null : _reload,
                           icon: _isReloading
                               ? const SizedBox(
@@ -215,7 +227,7 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
                         const Padding(
                           padding: EdgeInsets.symmetric(horizontal: 32.0),
                           child: Text(
-                            '백엔드에서 매일 자동으로 동기화됩니다.\n새로고침 버튼으로 최신 공지를 확인하세요.',
+                            '동기화 버튼으로 서버에서 최신 공지를 가져옵니다.\n새로고침 버튼으로 리스트를 갱신합니다.',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 12,
