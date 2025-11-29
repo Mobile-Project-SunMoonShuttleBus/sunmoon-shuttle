@@ -23,8 +23,8 @@ class TimetableApi {
 
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 8),
-      receiveTimeout: const Duration(seconds: 8),
+      connectTimeout: const Duration(seconds: 15),
+      receiveTimeout: const Duration(seconds: 30), // 크롤링 중일 때 응답이 늦을 수 있으므로 증가
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json', // JSON만 받도록 명시 (Swagger HTML 방지)
@@ -44,7 +44,9 @@ class TimetableApi {
   /// JWT 토큰으로 인증된 사용자의 시간표를 조회합니다.
   /// 시간표는 요일별로 그룹화되어 반환됩니다.
   Future<TimetableResponse> getTimetable() async {
-    final opts = Options();
+    final opts = Options(
+      receiveTimeout: const Duration(seconds: 30), // 크롤링 중일 때 응답이 늦을 수 있으므로 증가
+    );
     AuthService.I.attachAuthHeader(opts);
 
     if (kDebugMode) {
