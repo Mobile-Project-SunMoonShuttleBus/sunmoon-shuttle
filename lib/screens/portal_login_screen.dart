@@ -436,41 +436,48 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                             color: Colors.black.withOpacity(0.05),
                           ),
                         ),
-                        child: SingleChildScrollView(
-                          physics: const NeverScrollableScrollPhysics(),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            children: [
-                              Text(
-                                subject.subjectName,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.bold,
-                                  fontSize: 11,
+                        child: LayoutBuilder(
+                          builder: (context, constraints) {
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.start,
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    subject.subjectName,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 11,
+                                    ),
+                                    maxLines: constraints.maxHeight > 50 ? 2 : 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
                                 ),
-                                maxLines: 2,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                              const SizedBox(height: 1),
-                              Text(
-                                '${subject.startTime} ~ ${subject.endTime}',
-                                style: const TextStyle(
-                                  fontSize: 9,
-                                  color: Colors.black87,
-                                ),
-                              ),
-                              Text(
-                                '${subject.location} · ${subject.professor}',
-                                style: const TextStyle(
-                                  fontSize: 8,
-                                  color: Colors.black54,
-                                ),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ],
-                          ),
+                                if (constraints.maxHeight > 40) ...[
+                                  const SizedBox(height: 1),
+                                  Text(
+                                    '${subject.startTime} ~ ${subject.endTime}',
+                                    style: const TextStyle(
+                                      fontSize: 9,
+                                      color: Colors.black87,
+                                    ),
+                                  ),
+                                ],
+                                if (constraints.maxHeight > 60) ...[
+                                  Text(
+                                    '${subject.location} · ${subject.professor}',
+                                    style: const TextStyle(
+                                      fontSize: 8,
+                                      color: Colors.black54,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ],
+                            );
+                          },
                         ),
                       ),
                     ),
