@@ -281,7 +281,7 @@ class AuthApi {
   }
 
   /// 학교 포털 계정 저장
-  /// POST /api/auth/school/save
+  /// POST /auth/school-account
   /// { "schoolId":"2025xxxx","schoolPassword":"secret" }
   /// 응답: { "message":"SAVED" }
   /// 서버 DB에 영구 저장되며, 저장 후 자동으로 시간표 크롤링이 백그라운드에서 실행됩니다.
@@ -303,7 +303,7 @@ class AuthApi {
     }
     
     try {
-      final resp = await _dio.post('/api/auth/school/save', data: body, options: opts);
+      final resp = await _dio.post('/auth/school-account', data: body, options: opts);
       
       if (kDebugMode) {
         print('포털 계정 저장 응답: ${resp.data}');

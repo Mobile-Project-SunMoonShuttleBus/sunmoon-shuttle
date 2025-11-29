@@ -60,13 +60,7 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
   Future<void> _handlePortalLoginSuccess() async {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('포털 로그인 성공! 계정 정보를 저장해주세요.'),
-        duration: Duration(seconds: 3),
-      ),
-    );
-
+    // WebView에서 로그인 성공 후 계정 정보를 한 번만 입력받아 저장
     final saved = await _showPortalAccountSaveDialog();
 
     if (saved != true) {
@@ -74,6 +68,7 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
           content: Text('계정 정보 저장이 취소되었습니다. 나중에 다시 시도해주세요.'),
+          backgroundColor: Colors.orange,
         ),
       );
       return;
@@ -85,6 +80,7 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
       const SnackBar(
         content: Text('계정 정보가 서버에 저장되었습니다. 자동 크롤링이 실행됩니다. (약 10~30초)'),
         duration: Duration(seconds: 4),
+        backgroundColor: Colors.green,
       ),
     );
 
