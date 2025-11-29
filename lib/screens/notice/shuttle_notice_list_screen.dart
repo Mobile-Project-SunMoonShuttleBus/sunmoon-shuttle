@@ -16,6 +16,7 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
   late final NoticeApi _api;
   late Future<List<ShuttleNoticeSummary>> _future;
   bool _isReloading = false;
+  bool _isSyncing = false;
 
   @override
   void initState() {
@@ -50,12 +51,68 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
     }
   }
 
+  Future<void> _syncNotices() async {
+    if (_isSyncing) return;
+
+    setState(() {
+      _isSyncing = true;
+    });
+
+    try {
+      await _api.syncShuttleNotices();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('셔틀 공지 동기화가 완료되었습니다.'),
+            duration: Duration(seconds: 2),
+          ),
+        );
+        // 동기화 완료 후 리스트 새로고침
+        _reload();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('동기화 실패: ${e.toString()}'),
+            duration: const Duration(seconds: 3),
+            backgroundColor: Colors.red,
+          ),
+        );
+      }
+      if (kDebugMode) {
+        print('❌ 셔틀 공지 동기화 실패: $e');
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isSyncing = false;
+        });
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('셔틀 공지'),
         actions: [
+          if (_isSyncing)
+            const Padding(
+              padding: EdgeInsets.all(16.0),
+              child: SizedBox(
+                width: 20,
+                height: 20,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              ),
+            )
+          else
+            IconButton(
+              icon: const Icon(Icons.sync),
+              tooltip: '동기화',
+              onPressed: _syncNotices,
+            ),
           if (_isReloading)
             const Padding(
               padding: EdgeInsets.all(16.0),
