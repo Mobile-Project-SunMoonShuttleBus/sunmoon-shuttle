@@ -177,18 +177,45 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
     TimetableResponse initial,
   ) async {
     var latest = initial;
-    final maxWait = Duration(seconds: 35);
+    final maxWait = Duration(seconds: 40);
     final pollInterval = Duration(seconds: 3);
     final startedAt = DateTime.now();
 
-    while (DateTime.now().difference(startedAt) < maxWait) {
-      if (latest.crawlingStatus == 'completed' &&
-          latest.timetable.isNotEmpty) {
-        return latest;
-      }
-      await Future.delayed(pollInterval);
-      latest = await TimetableApi.I.getTimetable();
+    if (kDebugMode) {
+      print('⏳ 크롤링 완료 대기 시작... (최대 ${maxWait.inSeconds}초)');
     }
+
+    while (DateTime.now().difference(startedAt) < maxWait) {
+      await Future.delayed(pollInterval);
+      
+      try {
+        latest = await TimetableApi.I.getTimetable();
+        
+        if (kDebugMode) {
+          print('📊 크롤링 상태 확인: ${latest.crawlingStatus}, count: ${latest.count}');
+        }
+        
+        // 크롤링이 완료되었으면 반환 (count > 0이거나 completed 상태면)
+        if (latest.crawlingStatus == 'completed') {
+          if (kDebugMode) {
+            print('✅ 크롤링 완료: ${latest.count}개 과목');
+          }
+          return latest;
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ 크롤링 상태 확인 중 에러: $e');
+        }
+        // 에러가 발생해도 계속 시도
+      }
+    }
+    
+    if (kDebugMode) {
+      print('⚠️ 크롤링 대기 시간 초과 (${maxWait.inSeconds}초)');
+      print('최종 상태: ${latest.crawlingStatus}, count: ${latest.count}');
+    }
+    
+    // 시간 초과되어도 최신 데이터 반환
     return latest;
   }
 
