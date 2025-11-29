@@ -427,7 +427,7 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                       right: 4,
                       height: (_blockHeight(subject) - 4).clamp(0.0, totalHeight - _topOffset(subject) - 4),
                       child: Container(
-                        padding: const EdgeInsets.all(6),
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                         decoration: BoxDecoration(
                           color: _subjectColorMap[subject.subjectName] ??
                               Colors.blue.shade100,
@@ -436,40 +436,41 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                             color: Colors.black.withOpacity(0.05),
                           ),
                         ),
-                        child: Column(
-                          mainAxisSize: MainAxisSize.min,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          children: [
-                            Flexible(
-                              child: Text(
+                        child: SingleChildScrollView(
+                          physics: const NeverScrollableScrollPhysics(),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: [
+                              Text(
                                 subject.subjectName,
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
-                                  fontSize: 13,
+                                  fontSize: 11,
                                 ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                            ),
-                            const SizedBox(height: 2),
-                            Text(
-                              '${subject.startTime} ~ ${subject.endTime}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.black87,
+                              const SizedBox(height: 1),
+                              Text(
+                                '${subject.startTime} ~ ${subject.endTime}',
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  color: Colors.black87,
+                                ),
                               ),
-                            ),
-                            Text(
-                              '${subject.location} · ${subject.professor}',
-                              style: const TextStyle(
-                                fontSize: 11,
-                                color: Colors.black54,
+                              Text(
+                                '${subject.location} · ${subject.professor}',
+                                style: const TextStyle(
+                                  fontSize: 8,
+                                  color: Colors.black54,
+                                ),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
                               ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
                       ),
                     ),
