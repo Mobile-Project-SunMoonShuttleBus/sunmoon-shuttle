@@ -132,7 +132,14 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(create: (_) => SettingsProvider()),
+        ChangeNotifierProvider(
+          create: (_) {
+            final provider = SettingsProvider();
+            // 초기화 시 설정 로드
+            provider.loadSettings();
+            return provider;
+          },
+        ),
       ],
       child: Consumer<SettingsProvider>(
         builder: (context, settingsProvider, _) {
