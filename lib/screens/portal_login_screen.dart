@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:provider/provider.dart';
 import 'package:dio/dio.dart';
 import '../api/timetable_api.dart';
 import '../models/timetable_models.dart';
 import '../repositories/auth_repository.dart';
+import '../providers/settings_provider.dart';
+import '../core/localization/app_localizations.dart';
 import 'portal_timetable_webview.dart';
 
 /// 학기 시간표 화면 (1번 코드 원본 UI/기능)
@@ -29,7 +32,10 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
   final Map<String, Color> _subjectColorMap = {};
 
   // 시간표 그리드 설정 (9시 ~ 19시)
-  static const List<String> _orderedDays = ['월', '화', '수', '목', '금'];
+  // 요일은 로컬라이제이션을 위해 함수로 처리
+  List<String> _getOrderedDays(bool isKorean) {
+    return isKorean ? ['월', '화', '수', '목', '금'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
+  }
   static const double _columnWidth = 65.0; // 칸 너비 조정
   static const double _cellHeight = 60.0;
   static const int _startHour = 9;
