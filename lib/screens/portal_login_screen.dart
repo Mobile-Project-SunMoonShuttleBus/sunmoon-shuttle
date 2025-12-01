@@ -159,25 +159,26 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
         });
 
         // 크롤링 상태에 따른 사용자 알림
-        if (response.crawlingStatus == 'crawling' && response.count == 0) {
-          if (mounted) {
+        if (mounted) {
+          final settings = Provider.of<SettingsProvider>(context, listen: false);
+          final l10n = AppLocalizations(settings.isKorean);
+          
+          if (response.crawlingStatus == 'crawling' && response.count == 0) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('시간표를 가져오는 중입니다. 잠시만 기다려주세요...'),
-                duration: Duration(seconds: 3),
+              SnackBar(
+                content: Text(l10n.fetchingTimetable),
+                duration: const Duration(seconds: 3),
                 backgroundColor: Colors.blue,
               ),
             );
-          }
-        } else if (response.count == 0 && response.crawlingStatus == 'completed') {
-          if (kDebugMode) {
-            print('⚠️ 시간표 데이터가 없습니다. 포털 연동이 필요합니다.');
-          }
-          if (mounted) {
+          } else if (response.count == 0 && response.crawlingStatus == 'completed') {
+            if (kDebugMode) {
+              print('⚠️ 시간표 데이터가 없습니다. 포털 연동이 필요합니다.');
+            }
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('시간표 데이터가 없습니다. 포털 연동을 해주세요.'),
-                duration: Duration(seconds: 3),
+              SnackBar(
+                content: Text(l10n.noTimetableData),
+                duration: const Duration(seconds: 3),
                 backgroundColor: Colors.orange,
               ),
             );
@@ -196,14 +197,17 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
       if (mounted) {
         setState(() => _isLoadingTimetable = false);
         
-        String errorMessage = '시간표를 불러오는데 실패했습니다.';
+        final settings = Provider.of<SettingsProvider>(context, listen: false);
+        final l10n = AppLocalizations(settings.isKorean);
+        
+        String errorMessage = l10n.timetableLoadFailed;
         if (e.response?.statusCode == 401) {
-          errorMessage = '로그인이 필요합니다.';
+          errorMessage = l10n.loginFailed;
         } else if (e.response?.statusCode == 404) {
-          errorMessage = '시간표 데이터가 없습니다. 포털 연동을 해주세요.';
+          errorMessage = l10n.noTimetableData;
         } else if (e.type == DioExceptionType.connectionTimeout ||
                    e.type == DioExceptionType.receiveTimeout) {
-          errorMessage = '서버 연결 시간이 초과되었습니다.';
+          errorMessage = l10n.timetableFetchTimeout;
         } else if (e.response?.data != null) {
           final errorData = e.response!.data;
           if (errorData is Map && errorData.containsKey('message')) {
@@ -227,9 +231,11 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
 
       if (mounted) {
         setState(() => _isLoadingTimetable = false);
+        final settings = Provider.of<SettingsProvider>(context, listen: false);
+        final l10n = AppLocalizations(settings.isKorean);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('시간표를 불러오는데 실패했습니다: ${e.toString()}'),
+            content: Text('${l10n.timetableLoadFailed}: ${e.toString()}'),
             backgroundColor: Colors.red,
             duration: const Duration(seconds: 3),
           ),
