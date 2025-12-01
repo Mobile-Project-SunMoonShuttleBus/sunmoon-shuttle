@@ -1,5 +1,6 @@
 // lib/providers/auth_provider.dart
-import 'package:flutter/foundation.dart';
+import 'package:flutter/foundation.dart' show ChangeNotifier, kDebugMode;
+import 'package:dio/dio.dart';
 import '../repositories/auth_repository.dart'; // AuthRepository는 lib/repositories에 있어야 합니다
 import '../services/auth_service.dart';
 import '../api/auth_api.dart'; 
