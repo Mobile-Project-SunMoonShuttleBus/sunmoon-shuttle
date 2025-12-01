@@ -121,21 +121,36 @@ class _LoginDialogState extends State<LoginDialog> {
         
         if (success) {
           // 로그인 성공 - AuthProvider 인증 상태 업데이트
+          // rootContext를 사용하여 HomePage의 AuthProvider에 접근
           final rootCtx = widget.rootContext ?? context;
           if (rootCtx.mounted) {
             try {
               final authProvider = rootCtx.read<AuthProvider>();
               authProvider.setAuthenticated(true);
+              // 상태 업데이트 후 다이얼로그 닫기
+              if (mounted) {
+                Navigator.of(context).pop(true);
+              }
             } catch (e) {
               // AuthProvider를 찾을 수 없는 경우, context를 통해 접근 시도
               if (context.mounted) {
                 final authProvider = context.read<AuthProvider>();
                 authProvider.setAuthenticated(true);
+                if (mounted) {
+                  Navigator.of(context).pop(true);
+                }
+              }
+            }
+          } else {
+            // rootContext가 없으면 현재 context 사용
+            if (context.mounted) {
+              final authProvider = context.read<AuthProvider>();
+              authProvider.setAuthenticated(true);
+              if (mounted) {
+                Navigator.of(context).pop(true);
               }
             }
           }
-          // 다이얼로그를 닫고 true 반환
-          Navigator.of(context).pop(true);
         } else {
           // 자동 로그인 실패 - 에러 메시지 표시
           final settingsProvider = context.read<SettingsProvider>();
