@@ -317,10 +317,29 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final hasData = _timetableData != null && _timetableData!.timetable.isNotEmpty;
+    // 데이터가 있고 실제로 과목이 있는지 확인
+    final hasData = _timetableData != null && 
+                    _timetableData!.timetable.isNotEmpty &&
+                    _timetableData!.count > 0;
 
     return Scaffold(
-      appBar: AppBar(title: const Text('학기 시간표'), centerTitle: true, elevation: 0, backgroundColor: Colors.white, foregroundColor: Colors.black),
+      appBar: AppBar(
+        title: const Text('학기 시간표'), 
+        centerTitle: true, 
+        elevation: 0, 
+        backgroundColor: Colors.white, 
+        foregroundColor: Colors.black,
+        actions: [
+          // 새로고침 버튼 추가
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: () {
+              _fetchTimetableFromServer();
+            },
+            tooltip: '새로고침',
+          ),
+        ],
+      ),
       body: Column(
         children: [
           // 상단 컨트롤 영역
@@ -330,13 +349,29 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                if (_timetableData?.lastCrawledAt != null)
-                  Text('업데이트: ${_timetableData!.lastCrawledAt!.month}/${_timetableData!.lastCrawledAt!.day}', style: const TextStyle(fontSize: 12, color: Colors.grey))
+                if (_timetableData != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_timetableData!.lastCrawledAt != null)
+                        Text(
+                          '업데이트: ${_timetableData!.lastCrawledAt!.month}/${_timetableData!.lastCrawledAt!.day}',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        )
+                      else
+                        const Text('데이터 없음', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                      if (kDebugMode && _timetableData != null)
+                        Text(
+                          '상태: ${_timetableData!.crawlingStatus}, 개수: ${_timetableData!.count}',
+                          style: const TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                    ],
+                  )
                 else
-                  const Text('데이터 없음', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  const Text('로딩 중...', style: TextStyle(fontSize: 12, color: Colors.grey)),
                 
                 ElevatedButton.icon(
-                  onPressed: _openPortalWebView,
+                  onPressed: _isLoadingTimetable ? null : _openPortalWebView,
                   icon: const Icon(Icons.sync, size: 16),
                   label: const Text('포털 연동'),
                   style: ElevatedButton.styleFrom(
