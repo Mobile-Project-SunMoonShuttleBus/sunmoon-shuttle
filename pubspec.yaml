@@ -26,12 +26,21 @@ dependencies:
   flutter_dotenv: ^5.2.1
 
 dev_dependencies:
-<<<<<<< HEAD
-  lints: ^6.0.0
+  # 테스트용
+  flutter_test:
+    sdk: flutter
   test: ^1.25.6
+
+  # 린트 설정
+  flutter_lints: ^5.0.0
+  lints: ^6.0.0
 
 flutter:
   uses-material-design: true
+
+  # assets 폴더가 있다면 필요에 따라 사용
+  # assets:
+  #   - assets/icons/
 
   fonts:
     - family: NotoSansKR
@@ -54,17 +63,3 @@ flutter:
           weight: 800
         - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-Black.ttf
           weight: 900
-=======
-  # ⭐️ Flutter 프로젝트는 flutter_lints를 쓰는 게 좋습니다
-  flutter_test:
-    sdk: flutter
-  flutter_lints: ^5.0.0 
-
-# ⭐️ [중요] 이 부분이 있어야 아이콘/폰트 등 UI 리소스를 씁니다
-flutter:
-  uses-material-design: true
-  
-  # assets 폴더가 있다면 주석 해제하세요
-  # assets:
-  #   - assets/icons/
->>>>>>> f110e58bb7fd74024b6752e3978237cce5b26de7
