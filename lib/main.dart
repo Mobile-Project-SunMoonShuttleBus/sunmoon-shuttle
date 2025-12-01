@@ -33,14 +33,7 @@ void main() async {
     MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        ChangeNotifierProvider(
-          create: (_) {
-            final provider = SettingsProvider();
-            // 초기화 시 설정 로드
-            provider.loadSettings();
-            return provider;
-          },
-        ),
+        ChangeNotifierProvider(create: (_) => SettingsProvider()),
       ],
       child: const MyApp(),
     )
