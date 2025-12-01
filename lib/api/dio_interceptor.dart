@@ -1,59 +1,30 @@
-/// Dio 인터셉터 - 401 에러 처리 및 토큰 자동 갱신
-/// - 모든 요청에 accessToken 자동 추가
-/// - 401 에러 발생 시 refreshToken으로 자동 갱신
-/// - 갱신 중 동시 요청 대기 큐 처리
-/// - 토큰 갱신 실패 시 로그인 화면으로 리다이렉트
 import 'dart:async';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../services/auth_service.dart';
 import '../core/utils/app_logger.dart';
-import '../screens/login_dialog.dart';
+
+// [수정] 2번 코드의 로그인 화면 경로로 변경
+import '../screens/auth/login_screen.dart';
 
 class AuthInterceptor extends Interceptor {
   final AuthService _authService = AuthService.I;
-  bool _isRefreshing = false;
-  final List<_PendingRequest> _pendingRequests = [];
   BuildContext? _rootContext;
   
-  /// 루트 컨텍스트 설정 (로그인 화면 리다이렉트용)
+  // 메인에서 context를 주입받기 위한 메서드
   void setRootContext(BuildContext? context) {
     _rootContext = context;
   }
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    // 요청 로깅
-    AppLogger.debug(
-      'AuthInterceptor',
-      '${options.method} ${options.baseUrl}${options.path}',
-    );
+    // 요청 전 로그 출력
+    AppLogger.debug('AuthInterceptor', '${options.method} ${options.path}');
     
-    // 모든 요청에 헤더 설정
-    options.headers ??= {};
-    
-    // Swagger HTML 방지를 위해 Accept 헤더 명시적으로 설정
-    if (!options.headers!.containsKey('Accept')) {
-      options.headers!['Accept'] = 'application/json';
-    }
-    
-    // 모든 요청에 accessToken 자동 추가
+    // 토큰이 있으면 헤더에 자동 추가
     final token = _authService.token;
     if (token != null) {
-      options.headers!['Authorization'] = 'Bearer $token';
-    }
-    
-    // 요청 데이터에서 null 값 제거 (Dio가 null을 직렬화하지 못함)
-    if (options.data != null && options.data is Map) {
-      final data = options.data as Map;
-      final cleanedData = <String, dynamic>{};
-      data.forEach((key, value) {
-        if (value != null) {
-          cleanedData[key.toString()] = value;
-        }
-      });
-      options.data = cleanedData;
+      options.headers['Authorization'] = 'Bearer $token';
     }
     
     handler.next(options);
@@ -61,143 +32,35 @@ class AuthInterceptor extends Interceptor {
 
   @override
   void onError(DioException err, ErrorInterceptorHandler handler) async {
-    // 에러 로깅
-    AppLogger.error(
-      'AuthInterceptor',
-      '${err.requestOptions.method} ${err.requestOptions.baseUrl}${err.requestOptions.path} - ${err.message}',
-      err.stackTrace,
-    );
-    
-    // 401 Unauthorized 에러 처리
+    // 401 에러(인증 토큰 만료)가 발생했을 때
     if (err.response?.statusCode == 401) {
-      // refreshToken으로 새 accessToken 발급 시도
-      final refreshToken = await _authService.getRefreshToken();
+      AppLogger.warning('AuthInterceptor', '401 인증 만료됨 -> 로그인 화면으로 이동');
       
-      if (refreshToken == null) {
-        // refreshToken이 없으면 로그인 화면으로 이동
-        await _authService.clearTokens();
-        _redirectToLogin();
-        handler.reject(err);
-        return;
-      }
-
-      // 이미 갱신 중이면 대기
-      if (_isRefreshing) {
-        // 대기 큐에 추가
-        final completer = Completer<Response>();
-        _pendingRequests.add(_PendingRequest(
-          options: err.requestOptions,
-          completer: completer,
-        ));
-        handler.resolve(await completer.future);
-        return;
-      }
-
-      _isRefreshing = true;
-
-      try {
-        // refreshToken으로 새 accessToken 발급
-        // 요구사항: POST /api/auth/token/refresh
-        final dio = Dio(BaseOptions(
-          baseUrl: err.requestOptions.baseUrl,
-        ));
-        final response = await dio.post(
-          '/api/auth/token/refresh',
-          data: {'refreshToken': refreshToken},
-        );
-
-        final data = response.data as Map<String, dynamic>;
-        final newAccessToken = data['accessToken'] as String?;
-        final newRefreshToken = data['refreshToken'] as String?; // 새 refreshToken도 받을 수 있음
-        final expiresIn = data['expiresIn'] as int?;
-
-        if (newAccessToken != null) {
-          // 새 토큰 저장 (refreshToken도 갱신될 수 있음)
-          await _authService.saveTokens(
-            accessToken: newAccessToken,
-            refreshToken: newRefreshToken ?? refreshToken, // 새 refreshToken이 없으면 기존 것 유지
-            expiresIn: expiresIn,
-          );
-
-          // 원래 요청 재시도
-          final opts = err.requestOptions;
-          opts.headers ??= {};
-          opts.headers!['Authorization'] = 'Bearer $newAccessToken';
-          
-          final retryResponse = await dio.fetch(opts);
-          
-          // 대기 중인 요청들도 처리
-          for (var pending in _pendingRequests) {
-            pending.options.headers ??= {};
-            pending.options.headers!['Authorization'] = 'Bearer $newAccessToken';
-            try {
-              final pendingResponse = await dio.fetch(pending.options);
-              pending.completer.complete(pendingResponse);
-            } catch (e) {
-              pending.completer.completeError(e);
-            }
-          }
-          _pendingRequests.clear();
-          
-          handler.resolve(retryResponse);
-        } else {
-          // 토큰 갱신 실패 - 로그인 화면으로 이동
-          await _authService.clearTokens();
-          _redirectToLogin();
-          handler.reject(err);
-        }
-      } catch (e) {
-        // 토큰 갱신 실패 - 로그인 화면으로 이동
-        AppLogger.error('AuthInterceptor', '토큰 갱신 실패: $e', e is Error ? e.stackTrace : null);
-        await _authService.clearTokens();
-        _redirectToLogin();
-        handler.reject(err);
-      } finally {
-        _isRefreshing = false;
-      }
-    } else {
-      handler.next(err);
-    }
+      // 토큰 삭제 후 로그인 화면으로 튕겨내기
+      await _authService.clearTokens();
+      _redirectToLogin();
+      
+      handler.reject(err);
+      return;
+    } 
+    
+    handler.next(err);
   }
   
-  @override
-  void onResponse(Response response, ResponseInterceptorHandler handler) {
-    // 응답 로깅
-    AppLogger.debug(
-      'AuthInterceptor',
-      '${response.requestOptions.method} ${response.requestOptions.baseUrl}${response.requestOptions.path} - ${response.statusCode}',
-    );
-    handler.next(response);
-  }
-
-  /// 로그인 화면으로 리다이렉트
+  // [수정] 다이얼로그(팝업) 대신 로그인 스크린(페이지)으로 이동하도록 변경
   void _redirectToLogin() {
-    if (_rootContext == null) {
-      AppLogger.warning('AuthInterceptor', '루트 컨텍스트가 설정되지 않아 로그인 화면으로 이동할 수 없습니다.');
-      return;
+    if (_rootContext != null && _rootContext!.mounted) {
+      // 로그인 화면으로 이동하고, 뒤로가기 못하게 스택 비우기
+      Navigator.of(_rootContext!).pushAndRemoveUntil(
+        MaterialPageRoute(builder: (context) => LoginScreen()),
+        (route) => false,
+      );
+      
+      // 안내 메시지 표시
+      ScaffoldMessenger.of(_rootContext!).showSnackBar(
+        const SnackBar(content: Text('로그인이 만료되었습니다. 다시 로그인해주세요.')),
+      );
     }
-
-    // Navigator를 사용하여 로그인 다이얼로그 표시
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (_rootContext != null && _rootContext!.mounted) {
-        showDialog(
-          context: _rootContext!,
-          barrierDismissible: false,
-          builder: (context) => LoginDialog(rootContext: _rootContext),
-        );
-      }
-    });
   }
-}
-
-/// 대기 중인 요청 정보
-class _PendingRequest {
-  final RequestOptions options;
-  final Completer<Response> completer;
-
-  _PendingRequest({
-    required this.options,
-    required this.completer,
-  });
 }
 
