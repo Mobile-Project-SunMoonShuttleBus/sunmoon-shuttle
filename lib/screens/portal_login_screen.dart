@@ -162,34 +162,49 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
   // 크롤링 완료 대기 (폴링)
   Future<TimetableResponse?> _waitForCrawlingComplete(TimetableResponse initial) async {
     var latest = initial;
-    final maxWait = const Duration(seconds: 35);
+    final maxWait = const Duration(seconds: 90); // 크롤링 시간을 90초로 증가
     final pollInterval = const Duration(seconds: 3);
     final startedAt = DateTime.now();
     int pollCount = 0;
 
     while (DateTime.now().difference(startedAt) < maxWait) {
-      if (latest.crawlingStatus == 'completed' && latest.timetable.isNotEmpty) {
-        if (kDebugMode) {
-          print('📋 크롤링 완료 확인 (${pollCount}번째 폴링)');
+      // 크롤링 완료 확인: completed 상태이고 실제 데이터가 있는지 확인
+      if (latest.crawlingStatus == 'completed') {
+        // 데이터가 실제로 있는지 확인 (월~금 중 하나라도 과목이 있으면 완료)
+        final hasData = _orderedDays.any((day) => 
+          latest.timetable[day] != null && latest.timetable[day]!.isNotEmpty
+        );
+        
+        if (hasData || latest.count > 0) {
+          if (kDebugMode) {
+            print('📋 크롤링 완료 확인 (${pollCount}번째 폴링, count: ${latest.count})');
+          }
+          return latest;
         }
-        return latest;
       }
+      
       await Future.delayed(pollInterval);
       pollCount++;
       
       try {
         latest = await TimetableApi.I.getTimetable();
         
-        if (kDebugMode && pollCount % 3 == 0) {
+        if (kDebugMode && pollCount % 5 == 0) {
           print('📋 크롤링 상태 확인 (${pollCount}번째): ${latest.crawlingStatus}, count: ${latest.count}');
         }
         
-        // 크롤링이 완료되었거나 데이터가 있으면 반환
-        if (latest.crawlingStatus == 'completed' || latest.count > 0) {
-          if (kDebugMode) {
-            print('📋 크롤링 완료 또는 데이터 확인됨');
+        // 크롤링이 완료되었고 데이터가 있으면 반환
+        if (latest.crawlingStatus == 'completed') {
+          final hasData = _orderedDays.any((day) => 
+            latest.timetable[day] != null && latest.timetable[day]!.isNotEmpty
+          );
+          
+          if (hasData || latest.count > 0) {
+            if (kDebugMode) {
+              print('📋 크롤링 완료 및 데이터 확인됨 (count: ${latest.count})');
+            }
+            return latest;
           }
-          return latest;
         }
       } catch (e) {
         if (kDebugMode) {
@@ -201,20 +216,24 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
     
     if (kDebugMode) {
       print('⚠️ 크롤링 대기 시간 초과 (${maxWait.inSeconds}초)');
+      print('  - 최종 상태: ${latest.crawlingStatus}');
+      print('  - 최종 count: ${latest.count}');
     }
     return latest;
   }
 
-  // 과목별 색상 지정
+  // 과목별 색상 지정 (월~금만 처리)
   void _assignColors(TimetableResponse response) {
     _subjectColorMap.clear();
     final uniqueSubjects = <String>{};
 
-    response.timetable.forEach((day, subjects) {
+    // 월~금만 처리 (토, 일 제외)
+    for (final day in _orderedDays) {
+      final subjects = response.timetable[day] ?? [];
       for (final subject in subjects) {
         uniqueSubjects.add(subject.subjectName);
       }
-    });
+    }
 
     var index = 0;
     for (final subjectName in uniqueSubjects) {
@@ -317,10 +336,15 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 데이터가 있고 실제로 과목이 있는지 확인
-    final hasData = _timetableData != null && 
-                    _timetableData!.timetable.isNotEmpty &&
-                    _timetableData!.count > 0;
+    // 데이터가 있고 실제로 과목이 있는지 확인 (월~금만 체크)
+    bool hasData = false;
+    if (_timetableData != null) {
+      // 월~금 중 하나라도 과목이 있으면 데이터가 있는 것으로 간주
+      hasData = _orderedDays.any((day) => 
+        _timetableData!.timetable[day] != null && 
+        _timetableData!.timetable[day]!.isNotEmpty
+      ) || _timetableData!.count > 0;
+    }
 
     return Scaffold(
       appBar: AppBar(
