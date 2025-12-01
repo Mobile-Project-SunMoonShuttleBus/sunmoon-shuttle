@@ -80,7 +80,6 @@ class RegisterProvider extends ChangeNotifier {
         passwordConfirm: passwordConfirm,
       );
 
-<<<<<<< HEAD:lib/features/auth/providers/register_provider.dart
       // 성공 판단: success 필드가 true이거나, 메시지에 성공 관련 키워드가 포함되어 있으면 성공
       final message = result['message']?.toString() ?? '';
       final messageUpper = message.toUpperCase();
@@ -92,13 +91,8 @@ class RegisterProvider extends ChangeNotifier {
                       messageUpper.contains('SUCCESS');
 
       if (success) {
-        await _profileStorage.saveUserId(userId.trim());
-=======
-      if (result['message'] == 'REGISTER_SUCCESS' || result['success'] == true) { 
->>>>>>> f110e58bb7fd74024b6752e3978237cce5b26de7:lib/providers/register_provider.dart
         _isLoading = false;
         _errorMessage = null; // 성공 시 에러 메시지 초기화
-        _errorCode = null;
         notifyListeners();
         return true;
       }

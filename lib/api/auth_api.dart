@@ -277,10 +277,6 @@ class AuthApi {
       'schoolPassword': schoolPassword, // 서버에서 암호화 처리
     };
     
-<<<<<<< HEAD
-      try {
-        final resp = await _dio.post('/api/auth/school-account', data: body, options: opts);
-=======
     if (kDebugMode) {
       print('포털 계정 저장 요청: schoolId=${body['schoolId']}');
       print('서버 DB에 영구 저장됩니다. 저장 후 자동 크롤링이 실행됩니다.');
@@ -296,7 +292,6 @@ class AuthApi {
           print('📋 자동 크롤링이 백그라운드에서 실행됩니다. (약 10~30초 소요)');
         }
       }
->>>>>>> f110e58bb7fd74024b6752e3978237cce5b26de7
       
       return Map<String, dynamic>.from(resp.data);
     } on DioException catch (e) {

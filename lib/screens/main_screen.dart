@@ -1,17 +1,9 @@
 import 'package:flutter/material.dart';
-<<<<<<< HEAD
-import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
-import 'package:provider/provider.dart';
-import 'package:flutter_naver_map/flutter_naver_map.dart';
-import 'package:geolocator/geolocator.dart';
-import 'package:dio/dio.dart';
-=======
 import 'main_map_page.dart';     
 import 'bus_stops_screen.dart';  
 import 'timetable_screen.dart'; 
 // [추가] 새로 만든 화면들 임포트
 import 'portal_login_screen.dart'; 
->>>>>>> f110e58bb7fd74024b6752e3978237cce5b26de7
 import 'settings_screen.dart';
 
 class MainScreen extends StatefulWidget {
