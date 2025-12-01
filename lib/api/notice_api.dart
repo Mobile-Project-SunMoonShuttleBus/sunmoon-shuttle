@@ -257,9 +257,9 @@ class NoticeApi {
     // (타임아웃 없이 작동하도록 충분히 긴 시간 설정)
     final syncDio = Dio(BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(hours: 1), // 연결 타임아웃 (1시간)
-      sendTimeout: const Duration(hours: 1), // 요청 전송 타임아웃 (1시간)
-      receiveTimeout: const Duration(hours: 1), // 응답 대기 타임아웃 (1시간 - LLM 처리 시간 고려)
+      connectTimeout: const Duration(minute: 10), // 연결 타임아웃 (1시간)
+      sendTimeout: const Duration(minute: 10), // 요청 전송 타임아웃 (1시간)
+      receiveTimeout: const Duration(minute: 10), // 응답 대기 타임아웃 (1시간 - LLM 처리 시간 고려)
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
