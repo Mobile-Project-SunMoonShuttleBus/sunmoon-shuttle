@@ -1,6 +1,7 @@
 /// 인증 API 클라이언트
 /// - 회원가입, 로그인, 로그아웃 API 호출
 /// - Dio 인터셉터를 통한 자동 토큰 관리 및 401 처리
+library;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../services/auth_service.dart';
@@ -28,8 +29,8 @@ class AuthApi {
     
     _dio = Dio(BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(seconds: 15),
-      receiveTimeout: const Duration(seconds: 30), // 크롤링 시작 응답을 기다리기 위해 증가
+      connectTimeout: const Duration(seconds: 8),
+      receiveTimeout: const Duration(seconds: 8),
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json', // JSON만 받도록 명시 (Swagger HTML 방지)
@@ -276,33 +277,12 @@ class AuthApi {
       body['pref'] = pref;
     }
     
-    try {
-      final resp = await _dio.patch('/api/users/me', data: body, options: opts);
-      
-      // 응답이 Map인 경우
-      if (resp.data is Map<String, dynamic>) {
-        return Map<String, dynamic>.from(resp.data);
-      }
-      
-      // 응답이 String인 경우
-      if (resp.data is String) {
-        return {'message': resp.data as String};
-      }
-      
-      // 예상치 못한 형식이지만 200이면 성공으로 처리
-      return {'message': 'UPDATED'};
-    } on DioException catch (e) {
-      if (kDebugMode) {
-        print('❌ updateMe 실패: ${e.message}');
-        print('응답 상태 코드: ${e.response?.statusCode}');
-        print('응답 데이터: ${e.response?.data}');
-      }
-      rethrow;
-    }
+    final resp = await _dio.patch('/api/users/me', data: body, options: opts);
+    return Map<String, dynamic>.from(resp.data);
   }
 
   /// 학교 포털 계정 저장
-  /// POST /api/auth/school-account
+  /// POST /api/auth/school/save
   /// { "schoolId":"2025xxxx","schoolPassword":"secret" }
   /// 응답: { "message":"SAVED" }
   /// 서버 DB에 영구 저장되며, 저장 후 자동으로 시간표 크롤링이 백그라운드에서 실행됩니다.
@@ -310,9 +290,7 @@ class AuthApi {
     required String schoolId,
     required String schoolPassword,
   }) async {
-    final opts = Options(
-      receiveTimeout: const Duration(seconds: 30), // 크롤링 시작 응답을 기다리기 위해 타임아웃 증가
-    );
+    final opts = Options();
     AuthService.I.attachAuthHeader(opts);
     
     final body = <String, dynamic>{
@@ -326,7 +304,7 @@ class AuthApi {
     }
     
     try {
-      final resp = await _dio.post('/api/auth/school-account', data: body, options: opts);
+      final resp = await _dio.post('/api/auth/school/save', data: body, options: opts);
       
       if (kDebugMode) {
         print('포털 계정 저장 응답: ${resp.data}');

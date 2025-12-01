@@ -1,5 +1,6 @@
 /// 캐시 매니저 (싱글톤)
 /// SharedPreferences 기반 Key-Value 캐시 관리
+library;
 import 'dart:convert';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../utils/app_logger.dart';
