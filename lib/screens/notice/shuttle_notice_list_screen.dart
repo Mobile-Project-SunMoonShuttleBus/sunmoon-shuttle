@@ -35,9 +35,6 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
 
     try {
       await _future;
-      if (kDebugMode) {
-        print('✅ 셔틀 공지 리스트 새로고침 완료');
-      }
     } catch (e) {
       if (kDebugMode) {
         print('❌ 셔틀 공지 리스트 새로고침 실패: $e');
@@ -191,10 +188,6 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
             }
 
             final notices = snapshot.data ?? [];
-
-            if (kDebugMode) {
-              print('🔵 셔틀 공지 리스트: ${notices.length}개');
-            }
 
             if (notices.isEmpty) {
               return ListView(

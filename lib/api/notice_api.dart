@@ -186,17 +186,8 @@ class NoticeApi {
         throw Exception('셔틀 공지 상세 조회 실패: ${resp.statusCode} / ${resp.data}');
       }
 
-      if (kDebugMode) {
-        print('✅ 셔틀 공지 상세 응답 데이터 타입: ${resp.data.runtimeType}');
-      }
-
       // 응답이 JSON인지 확인
       if (resp.data is String) {
-        if (kDebugMode) {
-          print('⚠️ 응답이 JSON이 아닙니다. 응답 타입: ${resp.data.runtimeType}');
-          final preview = resp.data.toString().substring(0, resp.data.toString().length > 200 ? 200 : resp.data.toString().length);
-          print('⚠️ 응답 미리보기: $preview...');
-        }
         throw Exception('서버가 JSON 대신 다른 형식을 반환했습니다.');
       }
 
@@ -208,29 +199,8 @@ class NoticeApi {
         throw Exception('예상치 못한 응답 형식입니다. Map이 아닙니다.');
       }
 
-      if (kDebugMode) {
-        print('셔틀 공지 상세 파싱 시작');
-        print('  - ID: ${jsonMap['_id']}');
-        print('  - 포털 공지 ID: ${jsonMap['portalNoticeId']}');
-        print('  - 제목: ${jsonMap['title']}');
-        print('  - 요약 존재 여부: ${jsonMap.containsKey('summary') && jsonMap['summary'] != null && (jsonMap['summary'] as String).isNotEmpty}');
-        if (jsonMap.containsKey('summary')) {
-          final summary = jsonMap['summary'];
-          if (summary != null && summary.toString().trim().isNotEmpty) {
-            print('  - 요약 길이: ${summary.toString().length}자');
-            print('  - 요약 미리보기: ${summary.toString().substring(0, summary.toString().length > 100 ? 100 : summary.toString().length)}...');
-          } else {
-            print('  - 요약: 없음 (빈 문자열 또는 null)');
-          }
-        }
-      }
-
       try {
         final notice = ShuttleNoticeDetail.fromJson(jsonMap);
-        if (kDebugMode) {
-          print('✅ 셔틀 공지 상세 파싱 완료');
-          print('  - 요약 표시 여부: ${notice.hasSummary}');
-        }
         return notice;
       } catch (e) {
         if (kDebugMode) {
@@ -302,9 +272,6 @@ class NoticeApi {
 
       // 200 응답 처리: { "message": "셔틀 공지 동기화 완료" }
       if (resp.statusCode == 200) {
-        if (kDebugMode) {
-          print('✅ 셔틀 공지 동기화 성공: ${resp.data}');
-        }
 
         // 응답이 Map인 경우
         if (resp.data is Map<String, dynamic>) {
