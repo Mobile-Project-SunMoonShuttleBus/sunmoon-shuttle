@@ -6,7 +6,7 @@ environment:
   sdk: '>=3.2.0 <4.0.0' # Flutter 호환성을 위해 버전 범위 조정 권장
 
 dependencies:
-  # ⭐️ [핵심] 이 부분이 없어서 에러가 났던 겁니다!
+  # Flutter SDK
   flutter:
     sdk: flutter
 
@@ -31,9 +31,8 @@ dev_dependencies:
     sdk: flutter
   test: ^1.25.6
 
-  # 린트 설정
-  flutter_lints: ^5.0.0
-  lints: ^6.0.0
+  # 린트 설정 (flutter_lints만 사용)
+  flutter_lints: ^6.0.0
 
 flutter:
   uses-material-design: true
