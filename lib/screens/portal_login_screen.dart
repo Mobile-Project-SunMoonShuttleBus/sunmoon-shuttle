@@ -614,20 +614,37 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                   Positioned(
                     top: _topOffset(subject),
                     left: 1, right: 1,
-                    height: _blockHeight(subject) - 2,
+                    height: _blockHeight(subject) - 1, // 여유 공간 확보
                     child: Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2), // 패딩 조정
                       decoration: BoxDecoration(
                         color: _subjectColorMap[subject.subjectName] ?? Colors.blue[100],
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(color: Colors.black.withOpacity(0.05)),
                       ),
                       child: Column(
+                        mainAxisSize: MainAxisSize.min, // 최소 크기만 사용
                         mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Text(subject.subjectName, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
+                          Text(
+                            subject.subjectName, 
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, height: 1.1), 
+                            maxLines: 2, 
+                            overflow: TextOverflow.ellipsis, 
+                            textAlign: TextAlign.center,
+                          ),
                           if (subject.location.isNotEmpty)
-                            Text(subject.location, style: const TextStyle(fontSize: 9, color: Colors.black54), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 1),
+                              child: Text(
+                                subject.location, 
+                                style: const TextStyle(fontSize: 8, color: Colors.black54, height: 1.0), 
+                                maxLines: 1, 
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
                         ],
                       ),
                     ),
