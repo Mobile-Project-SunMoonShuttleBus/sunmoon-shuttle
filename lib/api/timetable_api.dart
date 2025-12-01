@@ -104,13 +104,21 @@ class TimetableApi {
       final timetableResponse = TimetableResponse.fromMap(responseData);
       
       if (kDebugMode) {
+        // 월~금만 필터링 (토, 일 제외)
+        const weekdays = ['월', '화', '수', '목', '금'];
+        final weekdayTimetable = timetableResponse.timetable.entries
+            .where((entry) => weekdays.contains(entry.key))
+            .toList();
+        final weekdayCount = weekdayTimetable.fold<int>(
+            0, (sum, entry) => sum + entry.value.length);
+        
         print('✅ 시간표 파싱 완료:');
         print('  - success: ${timetableResponse.success}');
-        print('  - count: ${timetableResponse.count}');
+        print('  - count: ${timetableResponse.count} (전체) / $weekdayCount (월~금)');
         print('  - crawlingStatus: ${timetableResponse.crawlingStatus}');
-        print('  - timetable 요일 수: ${timetableResponse.timetable.length}');
-        timetableResponse.timetable.forEach((day, subjects) {
-          print('  - $day: ${subjects.length}개 과목');
+        print('  - timetable 요일 수: ${weekdayTimetable.length} (월~금만)');
+        weekdayTimetable.forEach((entry) {
+          print('  - ${entry.key}: ${entry.value.length}개 과목');
         });
       }
 
