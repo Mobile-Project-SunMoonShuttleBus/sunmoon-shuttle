@@ -233,35 +233,43 @@ class SettingsProvider extends ChangeNotifier {
         return false;
       }
     } catch (e) {
-      // CORS 오류 감지 (PATCH 메서드에서 connectionError는 거의 확실히 CORS)
-      bool isCorsError = false;
+      // 404 에러 또는 CORS 오류 감지
+      bool shouldSaveLocally = false;
       
       if (e is DioException) {
-        // 1. PATCH 메서드에서 connectionError이고 응답이 없으면 무조건 CORS로 간주
+        // 1. 404 에러인 경우 (서버 경로가 없을 수 있음)
+        if (e.response?.statusCode == 404) {
+          shouldSaveLocally = true;
+          if (kDebugMode) {
+            print('✅ 404 에러 감지: 서버 경로가 없으므로 로컬에만 저장');
+          }
+        }
+        
+        // 2. PATCH 메서드에서 connectionError이고 응답이 없으면 무조건 CORS로 간주
         if (e.type == DioExceptionType.connectionError && 
             e.response == null &&
             e.requestOptions.method.toUpperCase() == 'PATCH') {
-          isCorsError = true;
+          shouldSaveLocally = true;
           if (kDebugMode) {
             print('✅ CORS 오류 감지: PATCH 메서드에서 connectionError (응답 없음)');
           }
         }
         
-        // 2. 에러 메시지에 CORS 관련 키워드가 있으면
+        // 3. 에러 메시지에 CORS 관련 키워드가 있으면
         final errorMsg = (e.message ?? '').toLowerCase();
         if (errorMsg.contains('cors') || 
             errorMsg.contains('xmlhttprequest') ||
             errorMsg.contains('access-control') ||
             errorMsg.contains('preflight') ||
             errorMsg.contains('blocked by cors')) {
-          isCorsError = true;
+          shouldSaveLocally = true;
           if (kDebugMode) {
             print('✅ CORS 오류 감지: 에러 메시지에 CORS 키워드 포함');
           }
         }
       }
       
-      // 3. toString()에도 CORS 관련 키워드가 있는지 확인
+      // 4. toString()에도 CORS 관련 키워드가 있는지 확인
       final errorStr = e.toString().toLowerCase();
       if (errorStr.contains('cors') || 
           errorStr.contains('connection error') ||
@@ -270,23 +278,23 @@ class SettingsProvider extends ChangeNotifier {
           errorStr.contains('access-control') ||
           errorStr.contains('preflight') ||
           errorStr.contains('blocked by cors')) {
-        isCorsError = true;
+        shouldSaveLocally = true;
         if (kDebugMode) {
           print('✅ CORS 오류 감지: 에러 문자열에 CORS 키워드 포함');
         }
       }
       
-      // 4. PATCH 메서드이고 connectionError이면 무조건 CORS로 간주 (웹 환경)
+      // 5. PATCH 메서드이고 connectionError이면 무조건 CORS로 간주 (웹 환경)
       if (e is DioException && 
           e.type == DioExceptionType.connectionError &&
           e.requestOptions.method.toUpperCase() == 'PATCH') {
-        isCorsError = true;
+        shouldSaveLocally = true;
         if (kDebugMode) {
           print('✅ CORS 오류 감지: PATCH + connectionError (웹 환경)');
         }
       }
       
-      if (isCorsError) {
+      if (shouldSaveLocally) {
         // 로컬에만 저장
         _language = newLang;
         await _saveLanguageToLocal(_language);
@@ -294,7 +302,7 @@ class SettingsProvider extends ChangeNotifier {
         _errorMessage = null; // 로컬 저장은 성공이므로 에러 메시지 제거
         notifyListeners();
         if (kDebugMode) {
-          print('✅ CORS 오류로 인해 로컬에만 저장 완료: $newLang');
+          print('✅ 서버 오류로 인해 로컬에만 저장 완료: $newLang');
         }
         // 로컬 저장 성공 - UI는 업데이트되지만 서버 동기화는 나중에
         return true; // 로컬 저장 성공으로 간주
@@ -304,7 +312,7 @@ class SettingsProvider extends ChangeNotifier {
       _isLoading = false;
       notifyListeners();
       if (kDebugMode) {
-        print('❌ 언어 설정 업데이트 실패 (CORS 아님): $e');
+        print('❌ 언어 설정 업데이트 실패: $e');
         print('❌ 에러 타입: ${e.runtimeType}');
         if (e is DioException) {
           print('❌ DioException 타입: ${e.type}');
