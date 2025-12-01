@@ -98,10 +98,29 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
           _isLoadingTimetable = false;
         });
 
-        // 데이터가 없을 때 사용자에게 알림
-        if (response.count == 0 && response.crawlingStatus == 'completed') {
+        // 크롤링 상태에 따른 사용자 알림
+        if (response.crawlingStatus == 'crawling' && response.count == 0) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('시간표를 가져오는 중입니다. 잠시만 기다려주세요...'),
+                duration: Duration(seconds: 3),
+                backgroundColor: Colors.blue,
+              ),
+            );
+          }
+        } else if (response.count == 0 && response.crawlingStatus == 'completed') {
           if (kDebugMode) {
             print('⚠️ 시간표 데이터가 없습니다. 포털 연동이 필요합니다.');
+          }
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('시간표 데이터가 없습니다. 포털 연동을 해주세요.'),
+                duration: Duration(seconds: 3),
+                backgroundColor: Colors.orange,
+              ),
+            );
           }
         }
       }
@@ -382,11 +401,21 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                           '업데이트: ${_timetableData!.lastCrawledAt!.month}/${_timetableData!.lastCrawledAt!.day}',
                           style: const TextStyle(fontSize: 12, color: Colors.grey),
                         )
+                      else if (_timetableData!.crawlingStatus == 'crawling')
+                        const Text(
+                          '크롤링 중...',
+                          style: TextStyle(fontSize: 12, color: Colors.blue),
+                        )
                       else
                         const Text('데이터 없음', style: TextStyle(fontSize: 12, color: Colors.grey)),
-                      if (kDebugMode && _timetableData != null)
+                      if (_timetableData!.crawlingStatus == 'crawling')
+                        const Text(
+                          '시간표를 가져오는 중입니다',
+                          style: TextStyle(fontSize: 10, color: Colors.blue),
+                        )
+                      else if (_timetableData!.count > 0)
                         Text(
-                          '상태: ${_timetableData!.crawlingStatus}, 개수: ${_timetableData!.count}',
+                          '과목 ${_timetableData!.count}개',
                           style: const TextStyle(fontSize: 10, color: Colors.grey),
                         ),
                     ],
