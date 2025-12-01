@@ -312,7 +312,7 @@ class NoticeApi {
 
     if (kDebugMode) {
       print('셔틀 공지 동기화 요청: POST /api/notices/shuttle/sync');
-      print('동기화 타임아웃: 연결 1시간, 전송 1시간, 응답 대기 1시간 (LLM 처리 시간 고려)');
+      print('동기화 타임아웃: 연결 10분, 전송 10분, 응답 대기 30분 (LLM 처리 시간 고려)');
     }
 
     try {

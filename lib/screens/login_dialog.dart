@@ -148,6 +148,16 @@ class _LoginDialogState extends State<LoginDialog> {
               if (kDebugMode) {
                 print('🔵 AuthProvider 상태 업데이트 완료, 로그인 다이얼로그 닫기');
               }
+              // 회원가입 성공 스낵바 표시
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('회원가입 및 로그인이 완료되었습니다.'),
+                    backgroundColor: Colors.green,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
+              }
               // 상태 업데이트 후 다이얼로그 닫기
               if (mounted) {
                 Navigator.of(context).pop(true);
@@ -162,6 +172,16 @@ class _LoginDialogState extends State<LoginDialog> {
                 authProvider.setAuthenticated(true);
                 if (kDebugMode) {
                   print('🔵 context에서 AuthProvider 찾기 성공, 로그인 다이얼로그 닫기');
+                }
+                // 회원가입 성공 스낵바 표시
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('회원가입 및 로그인이 완료되었습니다.'),
+                      backgroundColor: Colors.green,
+                      duration: Duration(seconds: 2),
+                    ),
+                  );
                 }
                 if (mounted) {
                   Navigator.of(context).pop(true);
@@ -178,6 +198,16 @@ class _LoginDialogState extends State<LoginDialog> {
               authProvider.setAuthenticated(true);
               if (kDebugMode) {
                 print('🔵 context에서 AuthProvider 찾기 성공, 로그인 다이얼로그 닫기');
+              }
+              // 회원가입 성공 스낵바 표시
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('회원가입 및 로그인이 완료되었습니다.'),
+                    backgroundColor: Colors.green,
+                    duration: Duration(seconds: 2),
+                  ),
+                );
               }
               if (mounted) {
                 Navigator.of(context).pop(true);
