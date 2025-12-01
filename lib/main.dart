@@ -123,6 +123,7 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             theme: ThemeData(
               useMaterial3: true,
               // 모든 환경에서 asset 폰트 사용 (한글/특수문자 지원)
+              // 웹에서는 HTML에서 로드한 Google Fonts도 fallback으로 사용 가능
               fontFamily: 'NotoSansKR',
             ),
             home: const HomePage(),
