@@ -45,9 +45,6 @@ class _PortalTimetableWebViewScreenState
             // 🔥 MainQ.aspx로 이동하는 것을 감지하면 즉시 WebView를 닫음
             // 페이지가 로드되기 전에 닫아서 사용자가 메인 페이지를 보지 않도록 함
             if (url.contains('MainQ.aspx')) {
-              if (kDebugMode) {
-                print('✅ 로그인 성공: MainQ.aspx 감지 - 즉시 WebView 닫기');
-              }
               // 페이지 로드 전에 바로 닫기
               Future.microtask(() {
                 if (mounted) {
@@ -64,9 +61,6 @@ class _PortalTimetableWebViewScreenState
             });
           },
           onPageFinished: (url) async {
-            if (kDebugMode) {
-              print('✅ WebView 페이지 로드 완료: $url');
-            }
             
             // MainQ.aspx는 이미 onPageStarted에서 처리했으므로 여기서는 무시
             if (url.contains('MainQ.aspx')) {

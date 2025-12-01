@@ -98,10 +98,6 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
         schoolPassword: schoolPassword,
       );
 
-      if (kDebugMode) {
-        print('✅ 포털 계정 저장 성공');
-      }
-
       if (!mounted) return;
       Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
 
@@ -135,35 +131,20 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
     try {
       var response = await TimetableApi.I.getTimetable();
 
-      if (kDebugMode) {
-        print('📋 초기 시간표 조회: status=${response.crawlingStatus}, count=${response.count}');
-      }
-
       // 크롤링 대기가 필요하고 아직 완료되지 않은 경우
       // 하지만 데이터가 이미 있으면 (count > 0) 바로 표시
       if (waitForCrawling && response.crawlingStatus != 'completed') {
         // 데이터가 이미 있으면 바로 표시
         if (response.count > 0) {
-          if (kDebugMode) {
-            print('✅ 데이터가 이미 있음 (count: ${response.count}). 바로 표시합니다.');
-          }
+          // 데이터가 있으면 바로 표시
         } else {
           // 데이터가 없으면 크롤링 완료 대기
-          if (kDebugMode) {
-            print('⏳ 크롤링 완료 대기 시작...');
-          }
           final completed = await _waitForCrawlingComplete(response);
           if (completed != null) {
             response = completed;
-            if (kDebugMode) {
-              print('✅ 크롤링 완료 후 최신 데이터: count=${response.count}');
-            }
           } else {
             // 대기 시간 초과 시 최신 데이터 다시 가져오기
             response = await TimetableApi.I.getTimetable();
-            if (kDebugMode) {
-              print('📋 대기 후 최신 데이터: status=${response.crawlingStatus}, count=${response.count}');
-            }
           }
         }
       }
@@ -174,10 +155,6 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
           _timetableData = response;
           _isLoadingTimetable = false;
         });
-        
-        if (kDebugMode) {
-          print('✅ 시간표 UI 업데이트 완료: ${response.count}개 과목');
-        }
       }
     } on DioException catch (e) {
       if (!mounted) return;

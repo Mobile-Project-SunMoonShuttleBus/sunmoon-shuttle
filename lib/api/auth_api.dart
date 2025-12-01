@@ -187,20 +187,9 @@ class AuthApi {
     try {
       final resp = await _dio.get('/api/users/me', options: opts);
       
-      if (kDebugMode) {
-        print('🔵 getMe 응답 상태 코드: ${resp.statusCode}');
-        print('🔵 getMe 응답 Content-Type: ${resp.headers.value('content-type')}');
-        print('🔵 getMe 응답 데이터 타입: ${resp.data.runtimeType}');
-      }
-      
       // Content-Type 헤더 확인 (Swagger HTML 방지)
       final contentType = resp.headers.value('content-type')?.toLowerCase() ?? '';
       if (contentType.contains('text/html') || contentType.contains('text/plain')) {
-        if (kDebugMode) {
-          print('⚠️ getMe 응답이 HTML입니다. Content-Type: $contentType');
-          print('⚠️ 서버가 Swagger UI를 반환하고 있습니다.');
-          print('⚠️ 백엔드 라우팅 설정을 확인하세요. /api/users/me가 Swagger로 리다이렉트되고 있습니다.');
-        }
         throw DioException(
           requestOptions: resp.requestOptions,
           response: resp,
@@ -211,13 +200,6 @@ class AuthApi {
       
       // 응답이 JSON인지 확인
       if (resp.data is String) {
-        // HTML이나 다른 텍스트 응답인 경우
-        if (kDebugMode) {
-          print('⚠️ getMe 응답이 JSON이 아닙니다. 응답 타입: ${resp.data.runtimeType}');
-          final preview = resp.data.toString().substring(0, resp.data.toString().length > 200 ? 200 : resp.data.toString().length);
-          print('⚠️ 응답 미리보기: $preview...');
-          print('⚠️ 서버가 HTML을 반환했습니다. 백엔드 라우팅 설정을 확인하세요.');
-        }
         throw DioException(
           requestOptions: resp.requestOptions,
           response: resp,
@@ -228,9 +210,6 @@ class AuthApi {
       
       // JSON 응답인 경우
       if (resp.data is Map) {
-        if (kDebugMode) {
-          print('✅ getMe 응답 파싱 성공');
-        }
         return Map<String, dynamic>.from(resp.data);
       }
       
@@ -320,21 +299,8 @@ class AuthApi {
       'schoolPassword': schoolPassword, // 서버에서 암호화 처리
     };
     
-    if (kDebugMode) {
-      print('포털 계정 저장 요청: schoolId=${body['schoolId']}');
-      print('서버 DB에 영구 저장됩니다. 저장 후 자동 크롤링이 실행됩니다.');
-    }
-    
-    try {
-      final resp = await _dio.post('/api/auth/school-account', data: body, options: opts);
-      
-      if (kDebugMode) {
-        print('포털 계정 저장 응답: ${resp.data}');
-        if (resp.data is Map && resp.data['message'] == 'SAVED') {
-          print('✅ 포털 계정 정보가 서버 DB에 영구 저장되었습니다.');
-          print('📋 자동 크롤링이 백그라운드에서 실행됩니다. (약 10~30초 소요)');
-        }
-      }
+      try {
+        final resp = await _dio.post('/api/auth/school-account', data: body, options: opts);
       
       return Map<String, dynamic>.from(resp.data);
     } on DioException catch (e) {
