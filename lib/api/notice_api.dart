@@ -112,24 +112,12 @@ class NoticeApi {
         throw Exception('셔틀 공지 리스트 조회 실패: ${resp.statusCode}');
       }
 
-      if (kDebugMode) {
-        print('✅ 셔틀 공지 리스트 응답 데이터 타입: ${resp.data.runtimeType}');
-        print('셔틀 공지 리스트 응답 데이터: ${resp.data}');
-      }
-
       // API 스펙에 따르면 응답은 바로 배열 형태: [{ "_id": "...", "title": "...", "postedAt": "..." }]
       if (resp.data is! List) {
-        if (kDebugMode) {
-          print('⚠️ 응답이 리스트가 아닙니다. 응답 타입: ${resp.data.runtimeType}');
-        }
         throw Exception('셔틀 공지 리스트 조회 실패: 응답 형식이 올바르지 않습니다. 배열이 아닙니다.');
       }
 
       final List<dynamic> jsonList = resp.data as List<dynamic>;
-      
-      if (kDebugMode) {
-        print('셔틀 공지 리스트 파싱: ${jsonList.length}개 항목');
-      }
 
       // 각 항목을 ShuttleNoticeSummary로 변환
       final notices = jsonList
@@ -148,10 +136,6 @@ class NoticeApi {
             }
           })
           .toList();
-
-      if (kDebugMode) {
-        print('✅ 셔틀 공지 리스트 파싱 완료: ${notices.length}개');
-      }
 
       return notices;
     } on DioException catch (e) {
