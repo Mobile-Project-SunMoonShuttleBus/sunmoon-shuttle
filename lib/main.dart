@@ -122,8 +122,9 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             debugShowCheckedModeBanner: false, // 디버그 배너 숨기기
             theme: ThemeData(
               useMaterial3: true,
-              // 한글 폰트 설정 (아이콘에는 영향 없음)
-              fontFamily: 'Noto Sans KR',
+              // 웹 환경에서는 폰트를 지정하지 않음 (시스템 폰트 사용)
+              // 모바일 환경에서만 Noto Sans KR 사용
+              fontFamily: kIsWeb ? null : 'Noto Sans KR',
             ),
             home: const HomePage(),
           );
