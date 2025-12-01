@@ -189,25 +189,14 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
     final pollInterval = Duration(seconds: 3);
     final startedAt = DateTime.now();
 
-    if (kDebugMode) {
-      print('⏳ 크롤링 완료 대기 시작... (최대 ${maxWait.inSeconds}초)');
-    }
-
     while (DateTime.now().difference(startedAt) < maxWait) {
       await Future.delayed(pollInterval);
       
       try {
         latest = await TimetableApi.I.getTimetable();
         
-        if (kDebugMode) {
-          print('📊 크롤링 상태 확인: ${latest.crawlingStatus}, count: ${latest.count}');
-        }
-        
         // 크롤링이 완료되었거나 데이터가 있으면 반환
         if (latest.crawlingStatus == 'completed' || latest.count > 0) {
-          if (kDebugMode) {
-            print('✅ 크롤링 완료 또는 데이터 있음: status=${latest.crawlingStatus}, count=${latest.count}개 과목');
-          }
           return latest;
         }
       } catch (e) {

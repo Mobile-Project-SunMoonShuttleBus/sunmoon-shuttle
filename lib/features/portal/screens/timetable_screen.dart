@@ -87,10 +87,6 @@ class _TimetableScreenState extends State<TimetableScreen> {
         });
       }
 
-      if (kDebugMode) {
-        print('✅ 시간표 로드 완료: ${_timetableData?.count ?? 0}개 과목');
-        print('크롤링 상태: ${_timetableData?.crawlingStatus}');
-      }
     } on DioException catch (e) {
       if (kDebugMode) {
         print('❌ 시간표 로드 실패: $e');
@@ -161,9 +157,6 @@ class _TimetableScreenState extends State<TimetableScreen> {
       try {
         final response = await TimetableApi.I.getTimetable();
         if (response.crawlingStatus == 'completed') {
-          if (kDebugMode) {
-            print('✅ 크롤링 완료: ${response.count}개 과목');
-          }
           return;
         }
       } catch (e) {

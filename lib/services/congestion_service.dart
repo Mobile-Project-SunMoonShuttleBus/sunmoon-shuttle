@@ -325,10 +325,6 @@ class CongestionService {
       );
 
       await CongestionApi.I.reportCongestion(request);
-
-      if (kDebugMode) {
-        print('✅ 혼잡도 리포트 전송 완료: $index');
-      }
     } catch (e) {
       if (kDebugMode) {
         print('❌ 혼잡도 리포트 전송 실패: $e');

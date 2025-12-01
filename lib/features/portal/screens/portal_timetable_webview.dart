@@ -38,10 +38,6 @@ class _PortalTimetableWebViewScreenState
       ..setNavigationDelegate(
         NavigationDelegate(
           onPageStarted: (url) {
-            if (kDebugMode) {
-              print('🌐 WebView 페이지 시작: $url');
-            }
-            
             // 🔥 MainQ.aspx로 이동하는 것을 감지하면 즉시 WebView를 닫음
             // 페이지가 로드되기 전에 닫아서 사용자가 메인 페이지를 보지 않도록 함
             if (url.contains('MainQ.aspx')) {
