@@ -104,10 +104,51 @@ class _LoginDialogState extends State<LoginDialog> {
       context: context,
       builder: (_) => const RegisterDialog(),
     );
-    // 회원가입이 성공적으로 완료되면(result == true) 로그인 다이얼로그도 닫음
-    // 회원가입 후 자동으로 로그인된 상태로 전환하기 위함
-    if (result == true && mounted) {
-      Navigator.of(context).pop(true);
+    // 회원가입이 성공적으로 완료되면 자동 로그인 수행
+    if (result != null && result is Map && result['success'] == true && mounted) {
+      final userId = result['userId'] as String?;
+      final password = result['password'] as String?;
+      
+      if (userId != null && password != null) {
+        // 회원가입 성공 시 자동 로그인 수행
+        final loginProvider = context.read<LoginProvider>();
+        final success = await loginProvider.login(
+          userId: userId,
+          password: password,
+        );
+        
+        if (!mounted) return;
+        
+        if (success) {
+          // 로그인 성공 - AuthProvider 인증 상태 업데이트
+          final rootCtx = widget.rootContext ?? context;
+          if (rootCtx.mounted) {
+            try {
+              final authProvider = rootCtx.read<AuthProvider>();
+              authProvider.setAuthenticated(true);
+            } catch (e) {
+              // AuthProvider를 찾을 수 없는 경우, context를 통해 접근 시도
+              if (context.mounted) {
+                final authProvider = context.read<AuthProvider>();
+                authProvider.setAuthenticated(true);
+              }
+            }
+          }
+          // 다이얼로그를 닫고 true 반환
+          Navigator.of(context).pop(true);
+        } else {
+          // 자동 로그인 실패 - 에러 메시지 표시
+          final settingsProvider = context.read<SettingsProvider>();
+          final l10n = AppLocalizations(settingsProvider.isKorean);
+          final errorMsg = loginProvider.errorMessage ?? l10n.loginFailed;
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(errorMsg),
+              backgroundColor: Colors.red,
+            ),
+          );
+        }
+      }
     }
   }
 
