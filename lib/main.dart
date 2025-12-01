@@ -123,8 +123,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             theme: ThemeData(
               useMaterial3: true,
               // 웹 환경에서는 폰트를 지정하지 않음 (시스템 폰트 사용)
-              // 모바일 환경에서만 Noto Sans KR 사용
-              fontFamily: kIsWeb ? null : 'Noto Sans KR',
+              // 모바일 환경에서만 NotoSansKR 사용
+              fontFamily: kIsWeb ? null : 'NotoSansKR',
             ),
             home: const HomePage(),
           );
