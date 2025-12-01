@@ -30,11 +30,15 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
 
     setState(() {
       _isReloading = true;
+      // FutureBuilder가 새로운 future를 감지하도록 강제로 재설정
       _future = _api.fetchShuttleNotices();
     });
 
     try {
-      await _future;
+      final notices = await _future;
+      if (kDebugMode) {
+        print('✅ 새로고침 완료: ${notices.length}개 공지');
+      }
     } catch (e) {
       if (kDebugMode) {
         print('❌ 셔틀 공지 리스트 새로고침 실패: $e');
@@ -64,8 +68,14 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
             duration: Duration(seconds: 2),
           ),
         );
-        // 동기화 완료 후 리스트 새로고침
-        _reload();
+        // 동기화 완료 후 잠시 대기 후 리스트 새로고침 (서버에서 데이터 준비 시간 고려)
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) {
+          // FutureBuilder가 새로운 future를 감지하도록 강제로 재설정
+          setState(() {
+            _future = _api.fetchShuttleNotices();
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -144,6 +154,7 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
         onRefresh: _reload,
         child: FutureBuilder<List<ShuttleNoticeSummary>>(
           future: _future,
+          key: ValueKey(_future), // future가 변경될 때마다 FutureBuilder 재빌드
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());

@@ -119,6 +119,13 @@ class NoticeApi {
 
       final List<dynamic> jsonList = resp.data as List<dynamic>;
 
+      if (kDebugMode) {
+        print('✅ 셔틀 공지 리스트 응답: ${jsonList.length}개 항목');
+        if (jsonList.isNotEmpty) {
+          print('첫 번째 항목 샘플: ${jsonList[0]}');
+        }
+      }
+
       // 각 항목을 ShuttleNoticeSummary로 변환
       final notices = jsonList
           .map((item) {
@@ -136,6 +143,10 @@ class NoticeApi {
             }
           })
           .toList();
+
+      if (kDebugMode) {
+        print('✅ 셔틀 공지 파싱 완료: ${notices.length}개');
+      }
 
       return notices;
     } on DioException catch (e) {
