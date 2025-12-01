@@ -17,6 +17,7 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
   late Future<List<ShuttleNoticeSummary>> _future;
   bool _isReloading = false;
   bool _isSyncing = false;
+  int _refreshKey = 0; // FutureBuilder 강제 재빌드용
 
   @override
   void initState() {
@@ -32,6 +33,7 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
       _isReloading = true;
       // FutureBuilder가 새로운 future를 감지하도록 강제로 재설정
       _future = _api.fetchShuttleNotices();
+      _refreshKey++; // FutureBuilder 강제 재빌드
     });
 
     try {
@@ -154,7 +156,7 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
         onRefresh: _reload,
         child: FutureBuilder<List<ShuttleNoticeSummary>>(
           future: _future,
-          key: ValueKey(_future), // future가 변경될 때마다 FutureBuilder 재빌드
+          key: ValueKey(_refreshKey), // future가 변경될 때마다 FutureBuilder 재빌드
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
