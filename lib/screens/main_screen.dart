@@ -1,10 +1,13 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import 'main_map_page.dart';     
 import 'bus_stops_screen.dart';  
 import 'timetable_screen.dart'; 
 // [추가] 새로 만든 화면들 임포트
 import 'portal_login_screen.dart'; 
 import 'settings_screen.dart';
+import '../providers/settings_provider.dart';
+import '../core/localization/app_localizations.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
