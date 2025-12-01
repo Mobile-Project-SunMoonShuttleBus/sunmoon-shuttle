@@ -122,8 +122,8 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
             debugShowCheckedModeBanner: false, // 디버그 배너 숨기기
             theme: ThemeData(
               useMaterial3: true,
-              // 웹: HTML에서 로드한 Google Fonts 사용, 모바일: asset 폰트 사용
-              fontFamily: kIsWeb ? 'Noto Sans KR' : 'NotoSansKR',
+              // 모든 환경에서 asset 폰트 사용 (한글/특수문자 지원)
+              fontFamily: 'NotoSansKR',
             ),
             home: const HomePage(),
           );

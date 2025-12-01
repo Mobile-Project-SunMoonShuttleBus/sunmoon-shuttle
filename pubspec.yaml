@@ -32,6 +32,21 @@ flutter:
   fonts:
     - family: NotoSansKR
       fonts:
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-Thin.ttf
+          weight: 100
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-ExtraLight.ttf
+          weight: 200
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-Light.ttf
+          weight: 300
         - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-SemiBold.ttf
+          weight: 600
         - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-Bold.ttf
           weight: 700
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-Black.ttf
+          weight: 900
