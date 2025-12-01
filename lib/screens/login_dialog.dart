@@ -112,7 +112,8 @@ class _LoginDialogState extends State<LoginDialog> {
       
       if (userId != null && password != null) {
         // 회원가입 성공 시 자동 로그인 수행
-        final loginProvider = context.read<LoginProvider>();
+        // LoginProvider는 build 메서드 내부에서만 접근 가능하므로, 여기서는 새 인스턴스를 생성
+        final loginProvider = LoginProvider();
         final success = await loginProvider.login(
           userId: userId,
           password: password,
