@@ -62,12 +62,36 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
     });
 
     try {
-      await _api.syncShuttleNotices();
+      final response = await _api.syncShuttleNotices();
       if (mounted) {
+        // 동기화 응답에서 상세 정보 추출
+        String message = '셔틀 공지 동기화가 완료되었습니다.';
+        if (response is Map<String, dynamic>) {
+          final processed = response['processed'] ?? 0;
+          final shuttleRelated = response['shuttleRelated'] ?? 0;
+          final errors = response['errors'] ?? 0;
+          final llmFailures = response['llmFailures'] ?? 0;
+          
+          // 상세 정보가 있으면 메시지에 포함
+          if (processed > 0 || shuttleRelated > 0 || errors > 0 || llmFailures > 0) {
+            message = '동기화 완료: 처리 ${processed}개, 셔틀 관련 ${shuttleRelated}개';
+            if (errors > 0) {
+              message += ', 오류 ${errors}개';
+            }
+            if (llmFailures > 0) {
+              message += '\n⚠️ LLM 연결 실패 ${llmFailures}건 (Ollama 서버 확인 필요)';
+            }
+            if (shuttleRelated == 0 && processed > 0) {
+              message += '\n💡 셔틀 관련 공지가 없거나 LLM이 모두 NO로 판별했습니다.';
+            }
+          }
+        }
+        
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('셔틀 공지 동기화가 완료되었습니다.'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(message),
+            duration: Duration(seconds: llmFailures > 0 ? 5 : 3),
+            backgroundColor: (response['llmFailures'] ?? 0) > 0 ? Colors.orange : Colors.green,
           ),
         );
         // 동기화 완료 후 잠시 대기 후 리스트 새로고침 (서버에서 데이터 준비 시간 고려)

@@ -281,12 +281,23 @@ class NoticeApi {
         options: opts,
       );
 
-      // 200 응답 처리: { "message": "셔틀 공지 동기화 완료" }
+      // 200 응답 처리: { "message": "셔틀 공지 동기화 완료", "processed": 10, "shuttleRelated": 0, "errors": 0, "llmFailures": 0 }
       if (resp.statusCode == 200) {
 
         // 응답이 Map인 경우
         if (resp.data is Map<String, dynamic>) {
           final responseMap = resp.data as Map<String, dynamic>;
+          
+          // 디버그 로그: 동기화 상세 정보 출력
+          if (kDebugMode) {
+            print('✅ 셔틀 공지 동기화 응답:');
+            print('  - message: ${responseMap['message']}');
+            print('  - processed: ${responseMap['processed']}');
+            print('  - shuttleRelated: ${responseMap['shuttleRelated']}');
+            print('  - errors: ${responseMap['errors']}');
+            print('  - llmFailures: ${responseMap['llmFailures']}');
+          }
+          
           // message 필드가 있는지 확인
           if (responseMap.containsKey('message')) {
             return responseMap;
