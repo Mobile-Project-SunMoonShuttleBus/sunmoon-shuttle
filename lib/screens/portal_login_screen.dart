@@ -64,8 +64,12 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
       // 크롤링 대기가 필요하고 아직 완료되지 않은 경우
       // 하지만 데이터가 이미 있으면 (count > 0) 바로 표시
       if (waitForCrawling && response.crawlingStatus != 'completed') {
-        // 데이터가 이미 있으면 바로 표시
-        if (response.count > 0) {
+        // 월~금 중 하나라도 데이터가 있으면 바로 표시
+        final hasExistingData = _orderedDays.any((day) => 
+          response.timetable[day] != null && response.timetable[day]!.isNotEmpty
+        );
+        
+        if (hasExistingData || response.count > 0) {
           if (kDebugMode) {
             print('📋 데이터가 이미 있음 (count: ${response.count}), 바로 표시');
           }
@@ -74,11 +78,42 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
           if (kDebugMode) {
             print('📋 크롤링 완료 대기 중...');
           }
+          
+          // 사용자에게 크롤링 중임을 알림
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('시간표를 가져오는 중입니다. 잠시만 기다려주세요...'),
+                duration: Duration(seconds: 5),
+                backgroundColor: Colors.blue,
+              ),
+            );
+          }
+          
           final completed = await _waitForCrawlingComplete(response);
           if (completed != null) {
             response = completed;
+            
+            // 크롤링 완료 후 데이터 확인
+            final hasDataAfterWait = _orderedDays.any((day) => 
+              response.timetable[day] != null && response.timetable[day]!.isNotEmpty
+            );
+            
             if (kDebugMode) {
-              print('📋 크롤링 완료, 데이터 받음 (count: ${response.count})');
+              print('📋 크롤링 완료, 데이터 받음 (count: ${response.count}, hasData: $hasDataAfterWait)');
+            }
+            
+            if (!hasDataAfterWait && response.count == 0) {
+              // 크롤링이 완료되었지만 데이터가 없는 경우
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(
+                    content: Text('시간표 데이터를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.'),
+                    duration: Duration(seconds: 4),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
             }
           } else {
             // 대기 시간 초과 시 최신 데이터 다시 가져오기
@@ -86,6 +121,21 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
               print('📋 크롤링 대기 시간 초과, 최신 데이터 다시 조회');
             }
             response = await TimetableApi.I.getTimetable();
+            
+            // 여전히 데이터가 없으면 알림
+            final stillNoData = !_orderedDays.any((day) => 
+              response.timetable[day] != null && response.timetable[day]!.isNotEmpty
+            ) && response.count == 0;
+            
+            if (stillNoData && mounted) {
+              ScaffoldMessenger.of(context).showSnackBar(
+                const SnackBar(
+                  content: Text('시간표를 가져오는데 시간이 오래 걸리고 있습니다. 잠시 후 새로고침을 해주세요.'),
+                  duration: Duration(seconds: 5),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            }
           }
         }
       }
