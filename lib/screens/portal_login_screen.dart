@@ -47,21 +47,44 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
     setState(() => _isLoadingTimetable = true);
 
     try {
+      if (kDebugMode) {
+        print('📋 시간표 조회 시작...');
+      }
+
       var response = await TimetableApi.I.getTimetable();
+
+      if (kDebugMode) {
+        print('📋 시간표 응답 받음:');
+        print('  - success: ${response.success}');
+        print('  - count: ${response.count}');
+        print('  - crawlingStatus: ${response.crawlingStatus}');
+        print('  - timetable keys: ${response.timetable.keys.toList()}');
+      }
 
       // 크롤링 대기가 필요하고 아직 완료되지 않은 경우
       // 하지만 데이터가 이미 있으면 (count > 0) 바로 표시
       if (waitForCrawling && response.crawlingStatus != 'completed') {
         // 데이터가 이미 있으면 바로 표시
         if (response.count > 0) {
-          // 데이터가 있으면 바로 표시
+          if (kDebugMode) {
+            print('📋 데이터가 이미 있음 (count: ${response.count}), 바로 표시');
+          }
         } else {
           // 데이터가 없으면 크롤링 완료 대기
+          if (kDebugMode) {
+            print('📋 크롤링 완료 대기 중...');
+          }
           final completed = await _waitForCrawlingComplete(response);
           if (completed != null) {
             response = completed;
+            if (kDebugMode) {
+              print('📋 크롤링 완료, 데이터 받음 (count: ${response.count})');
+            }
           } else {
             // 대기 시간 초과 시 최신 데이터 다시 가져오기
+            if (kDebugMode) {
+              print('📋 크롤링 대기 시간 초과, 최신 데이터 다시 조회');
+            }
             response = await TimetableApi.I.getTimetable();
           }
         }
@@ -74,11 +97,64 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
           _timetableData = response;
           _isLoadingTimetable = false;
         });
+
+        // 데이터가 없을 때 사용자에게 알림
+        if (response.count == 0 && response.crawlingStatus == 'completed') {
+          if (kDebugMode) {
+            print('⚠️ 시간표 데이터가 없습니다. 포털 연동이 필요합니다.');
+          }
+        }
       }
-    } catch (e) {
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ 시간표 조회 DioException: ${e.message}');
+        if (e.response != null) {
+          print('  - 상태 코드: ${e.response?.statusCode}');
+          print('  - 응답 데이터: ${e.response?.data}');
+        }
+      }
+
       if (mounted) {
-        // 에러 시 스낵바 표시하지 않고 로딩만 해제 (조용히 실패)
         setState(() => _isLoadingTimetable = false);
+        
+        String errorMessage = '시간표를 불러오는데 실패했습니다.';
+        if (e.response?.statusCode == 401) {
+          errorMessage = '로그인이 필요합니다.';
+        } else if (e.response?.statusCode == 404) {
+          errorMessage = '시간표 데이터가 없습니다. 포털 연동을 해주세요.';
+        } else if (e.type == DioExceptionType.connectionTimeout ||
+                   e.type == DioExceptionType.receiveTimeout) {
+          errorMessage = '서버 연결 시간이 초과되었습니다.';
+        } else if (e.response?.data != null) {
+          final errorData = e.response!.data;
+          if (errorData is Map && errorData.containsKey('message')) {
+            errorMessage = errorData['message'].toString();
+          }
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        print('❌ 시간표 조회 예외: $e');
+        print('스택 트레이스: $stackTrace');
+      }
+
+      if (mounted) {
+        setState(() => _isLoadingTimetable = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('시간표를 불러오는데 실패했습니다: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
     }
   }
@@ -89,22 +165,42 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
     final maxWait = const Duration(seconds: 35);
     final pollInterval = const Duration(seconds: 3);
     final startedAt = DateTime.now();
+    int pollCount = 0;
 
     while (DateTime.now().difference(startedAt) < maxWait) {
       if (latest.crawlingStatus == 'completed' && latest.timetable.isNotEmpty) {
+        if (kDebugMode) {
+          print('📋 크롤링 완료 확인 (${pollCount}번째 폴링)');
+        }
         return latest;
       }
       await Future.delayed(pollInterval);
+      pollCount++;
+      
       try {
         latest = await TimetableApi.I.getTimetable();
         
+        if (kDebugMode && pollCount % 3 == 0) {
+          print('📋 크롤링 상태 확인 (${pollCount}번째): ${latest.crawlingStatus}, count: ${latest.count}');
+        }
+        
         // 크롤링이 완료되었거나 데이터가 있으면 반환
         if (latest.crawlingStatus == 'completed' || latest.count > 0) {
+          if (kDebugMode) {
+            print('📋 크롤링 완료 또는 데이터 확인됨');
+          }
           return latest;
         }
       } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ 크롤링 상태 확인 중 에러 (계속 시도): $e');
+        }
         // 에러가 발생해도 계속 시도
       }
+    }
+    
+    if (kDebugMode) {
+      print('⚠️ 크롤링 대기 시간 초과 (${maxWait.inSeconds}초)');
     }
     return latest;
   }
