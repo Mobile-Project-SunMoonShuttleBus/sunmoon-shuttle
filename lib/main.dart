@@ -243,7 +243,7 @@ class _HomePageState extends State<HomePage> {
           if (kDebugMode) {
             print('🔵 로그인 다이얼로그 표시 중...');
           }
-          showDialog(
+          final loginResult = await showDialog(
             context: context,
             barrierDismissible: false,
             builder: (dialogContext) {
@@ -252,16 +252,15 @@ class _HomePageState extends State<HomePage> {
               }
               return LoginDialog(rootContext: context);
             },
-          ).then((result) {
-            if (kDebugMode) {
-              print('🔵 로그인 다이얼로그 결과: $result');
+          );
+          if (kDebugMode) {
+            print('🔵 로그인 다이얼로그 결과: $loginResult');
+          }
+          if (mounted) {
+            if (loginResult == true) {
+              authProvider.setAuthenticated(true);
             }
-            if (mounted) {
-              if (result == true) {
-                authProvider.setAuthenticated(true);
-              }
-            }
-          });
+          }
         } else {
           if (kDebugMode) {
             print('🔴 mounted가 false여서 다이얼로그 표시 불가');
