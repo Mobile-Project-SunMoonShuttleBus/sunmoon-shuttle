@@ -20,9 +20,6 @@ void main() async {
   // 네이버 지도 초기화 (모바일에서만)
   if (!kIsWeb) {
     try {
-      if (kDebugMode) {
-        print('🔵 main: FlutterNaverMap 초기화 시작');
-      }
       // flutter_naver_map 패키지 초기화 (모바일 전용)
       // 공식 문서에 따라 FlutterNaverMap().init() 사용
       await FlutterNaverMap().init(
@@ -44,29 +41,16 @@ void main() async {
           }
         },
       );
-      if (kDebugMode) {
-        print('🔵 main: FlutterNaverMap 초기화 완료');
-      }
     } catch (e, stackTrace) {
       if (kDebugMode) {
         print('🔴 main: FlutterNaverMap 초기화 에러: $e');
         print('🔴 스택 트레이스: $stackTrace');
       }
     }
-  } else {
-    if (kDebugMode) {
-      print('⚠️ 웹에서는 네이버 지도를 사용할 수 없습니다.');
-    }
   }
   
   try {
-    if (kDebugMode) {
-      print('🔵 main: AuthService.loadToken 시작');
-    }
     await AuthService.I.loadToken(); // 저장된 토큰 복구
-    if (kDebugMode) {
-      print('🔵 main: AuthService.loadToken 완료');
-    }
   } catch (e, stackTrace) {
     if (kDebugMode) {
       print('🔴 main: AuthService.loadToken 에러: $e');
@@ -75,13 +59,7 @@ void main() async {
   }
   
   try {
-    if (kDebugMode) {
-      print('🔵 main: CacheManager.init 시작');
-    }
     await CacheManager.I.init(); // 캐시 매니저 초기화
-    if (kDebugMode) {
-      print('🔵 main: CacheManager.init 완료');
-    }
   } catch (e, stackTrace) {
     if (kDebugMode) {
       print('🔴 main: CacheManager.init 에러: $e');
@@ -89,9 +67,6 @@ void main() async {
     }
   }
   
-  if (kDebugMode) {
-    print('🔵 main: runApp 시작');
-  }
   runApp(const MyApp());
 }
 
@@ -118,11 +93,6 @@ class _MyAppState extends State<MyApp> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     super.didChangeAppLifecycleState(state);
-    
-    if (kDebugMode) {
-      print('🔵 앱 생명주기 변경: $state');
-    }
-    
     // 앱이 백그라운드로 가거나 포그라운드로 올 때 처리
     // 혼잡도 서비스는 백그라운드에서도 계속 작동하도록 설정됨
   }
@@ -177,14 +147,8 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    if (kDebugMode) {
-      print('🔵 HomePage initState');
-    }
     // DioClient에 루트 컨텍스트 설정 (에러 처리 및 로그인 리다이렉트용)
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (kDebugMode) {
-        print('🔵 HomePage addPostFrameCallback');
-      }
       DioClient.instance.setRootContext(context);
       _tryAutoLogin();
     });
@@ -202,85 +166,36 @@ class _HomePageState extends State<HomePage> {
   /// 2. 있으면 POST /api/auth/token/refresh로 새 AccessToken 수신
   /// 3. 성공 시 홈으로 진입, 실패 시 로그인 화면
   Future<void> _tryAutoLogin() async {
-    if (kDebugMode) {
-      print('🔵 _tryAutoLogin 시작');
-    }
     try {
       final authProvider = context.read<AuthProvider>();
-      if (kDebugMode) {
-        print('🔵 AuthProvider 읽기 완료');
-      }
       final success = await authProvider.tryAutoLogin();
-      if (kDebugMode) {
-        print('🔵 tryAutoLogin 결과: $success');
-      }
 
-      if (!mounted) {
-        if (kDebugMode) {
-          print('🔴 mounted가 false입니다');
-        }
-        return;
-      }
+      if (!mounted) return;
 
       // 초기화 완료 표시
       if (mounted) {
         setState(() {
           _isInitialized = true;
         });
-        if (kDebugMode) {
-          print('🔵 _isInitialized = true 설정 완료');
-        }
       }
 
       if (!success) {
-        if (kDebugMode) {
-          print('🔵 자동 로그인 실패, 로그인 다이얼로그 표시 예정');
-        }
         // 자동 로그인 실패 시 로그인 다이얼로그 표시
         // 짧은 딜레이 후 다이얼로그 표시 (빌드 사이클 완료 대기)
         await Future.delayed(const Duration(milliseconds: 100));
         if (mounted) {
-          if (kDebugMode) {
-            print('🔵 로그인 다이얼로그 표시 중...');
-          }
           final loginResult = await showDialog(
             context: context,
             barrierDismissible: false,
-            builder: (dialogContext) {
-              if (kDebugMode) {
-                print('🔵 LoginDialog builder 호출');
-              }
-              return LoginDialog(rootContext: context);
-            },
+            builder: (dialogContext) => LoginDialog(rootContext: context),
           );
-          if (kDebugMode) {
-            print('🔵 로그인 다이얼로그 결과: $loginResult');
-          }
           if (mounted) {
             if (loginResult == true) {
               authProvider.setAuthenticated(true);
-              // 로그인 성공 후 공지사항 자동 동기화 시작
-              // MainScreen의 initState에서도 실행되지만, 로그인 직후에도 실행하여 최신 공지 확보
-              WidgetsBinding.instance.addPostFrameCallback((_) {
-                if (mounted) {
-                  // MainScreen이 이미 마운트되어 있다면 동기화는 MainScreen에서 처리됨
-                  // 여기서는 로그만 남김
-                  if (kDebugMode) {
-                    print('🔵 로그인 성공 - 공지사항 동기화는 MainScreen에서 자동 실행됩니다.');
-                  }
-                }
-              });
             }
-          }
-        } else {
-          if (kDebugMode) {
-            print('🔴 mounted가 false여서 다이얼로그 표시 불가');
           }
         }
       } else {
-        if (kDebugMode) {
-          print('🔵 자동 로그인 성공');
-        }
         // 자동 로그인 성공
         authProvider.setAuthenticated(true);
       }
@@ -322,19 +237,10 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) {
-    if (kDebugMode) {
-      print('🔵 HomePage build 호출, _isInitialized: $_isInitialized');
-    }
     return Consumer<AuthProvider>(
       builder: (context, authProvider, _) {
-        if (kDebugMode) {
-          print('🔵 Consumer builder 호출, isAuthenticated: ${authProvider.isAuthenticated}');
-        }
         // 초기화가 완료되지 않았으면 로딩 화면
         if (!_isInitialized) {
-          if (kDebugMode) {
-            print('🔵 로딩 화면 표시 (초기화 중)');
-          }
           return const Scaffold(
             backgroundColor: Colors.white,
             body: Center(
@@ -345,9 +251,6 @@ class _HomePageState extends State<HomePage> {
 
         // 로그인되지 않은 경우 로딩 화면 (로그인 다이얼로그가 표시됨)
         if (!authProvider.isAuthenticated) {
-          if (kDebugMode) {
-            print('🔵 로딩 화면 표시 (로그인 대기 중)');
-          }
           return const Scaffold(
             backgroundColor: Colors.white,
             body: Center(
@@ -357,9 +260,6 @@ class _HomePageState extends State<HomePage> {
         }
 
         // 로그인 성공 시 메인 화면 표시
-        if (kDebugMode) {
-          print('🔵 MainScreen 표시');
-        }
         return const MainScreen();
       },
     );
