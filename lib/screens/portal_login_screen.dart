@@ -447,9 +447,36 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.calendar_today_outlined, size: 60, color: Colors.grey[300]),
+                    Icon(
+                      _timetableData?.crawlingStatus == 'crawling' 
+                        ? Icons.hourglass_empty 
+                        : Icons.calendar_today_outlined, 
+                      size: 60, 
+                      color: _timetableData?.crawlingStatus == 'crawling' 
+                        ? Colors.blue[300] 
+                        : Colors.grey[300]
+                    ),
                     const SizedBox(height: 16),
-                    const Text("연동된 시간표가 없습니다.\n'포털 연동' 버튼을 눌러주세요.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                    Text(
+                      _timetableData?.crawlingStatus == 'crawling'
+                        ? "시간표를 가져오는 중입니다.\n잠시만 기다려주세요..."
+                        : "연동된 시간표가 없습니다.\n'포털 연동' 버튼을 눌러주세요.",
+                      textAlign: TextAlign.center, 
+                      style: TextStyle(
+                        color: _timetableData?.crawlingStatus == 'crawling' 
+                          ? Colors.blue[700] 
+                          : Colors.grey
+                      )
+                    ),
+                    if (_timetableData?.crawlingStatus == 'crawling')
+                      const Padding(
+                        padding: EdgeInsets.only(top: 16),
+                        child: SizedBox(
+                          width: 30,
+                          height: 30,
+                          child: CircularProgressIndicator(strokeWidth: 3),
+                        ),
+                      ),
                   ],
                 ),
               ),
