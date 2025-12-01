@@ -342,13 +342,15 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
   // 로그인 성공 후 계정 저장 팝업
   Future<void> _handlePortalLoginSuccess() async {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('포털 로그인 성공! 계정 정보를 저장해주세요.'), duration: Duration(seconds: 2)));
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+    final l10n = AppLocalizations(settings.isKorean);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.portalLoginSuccess), duration: const Duration(seconds: 2)));
 
     final saved = await _showPortalAccountSaveDialog();
     if (saved != true) return;
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('서버에 저장되었습니다. 시간표를 가져옵니다.'), duration: Duration(seconds: 2)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.accountSavedFetching), duration: const Duration(seconds: 2)));
 
     await _fetchTimetableFromServer(waitForCrawling: true);
   }
@@ -363,41 +365,47 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            Future<void> submit() async {
-              final schoolId = idController.text.trim();
-              final password = pwController.text;
+        return Consumer<SettingsProvider>(
+          builder: (context, settings, _) {
+            final l10n = AppLocalizations(settings.isKorean);
+            
+            return StatefulBuilder(
+              builder: (context, setStateDialog) {
+                Future<void> submit() async {
+                  final schoolId = idController.text.trim();
+                  final password = pwController.text;
 
-              if (schoolId.isEmpty || password.isEmpty) return;
+                  if (schoolId.isEmpty || password.isEmpty) return;
 
-              setStateDialog(() => isSubmitting = true);
+                  setStateDialog(() => isSubmitting = true);
 
-              try {
-                await AuthRepository.I.saveSchoolAccount(schoolId: schoolId, schoolPassword: password);
-                if (mounted) Navigator.of(dialogContext).pop(true);
-              } catch (e) {
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('저장 실패: $e'), backgroundColor: Colors.red));
-                setStateDialog(() => isSubmitting = false);
-              }
-            }
+                  try {
+                    await AuthRepository.I.saveSchoolAccount(schoolId: schoolId, schoolPassword: password);
+                    if (mounted) Navigator.of(dialogContext).pop(true);
+                  } catch (e) {
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${l10n.saveFailed}: $e'), backgroundColor: Colors.red));
+                    setStateDialog(() => isSubmitting = false);
+                  }
+                }
 
-            return AlertDialog(
-              title: const Text('포털 계정 저장'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('학번과 비밀번호를 입력하면\n자동으로 시간표를 가져옵니다.', style: TextStyle(fontSize: 13, color: Colors.grey)),
-                  const SizedBox(height: 16),
-                  TextField(controller: idController, decoration: const InputDecoration(labelText: '학번/ID', border: OutlineInputBorder(), prefixIcon: Icon(Icons.person))),
-                  const SizedBox(height: 12),
-                  TextField(controller: pwController, obscureText: true, decoration: const InputDecoration(labelText: '비밀번호', border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock))),
-                ],
-              ),
-              actions: [
-                TextButton(onPressed: isSubmitting ? null : () => Navigator.of(dialogContext).pop(false), child: const Text('취소')),
-                ElevatedButton(onPressed: isSubmitting ? null : submit, child: isSubmitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('저장')),
-              ],
+                return AlertDialog(
+                  title: Text(l10n.portalAccountSave),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(l10n.portalAccountSaveDescription, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                      const SizedBox(height: 16),
+                      TextField(controller: idController, decoration: InputDecoration(labelText: l10n.portalId, border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.person))),
+                      const SizedBox(height: 12),
+                      TextField(controller: pwController, obscureText: true, decoration: InputDecoration(labelText: l10n.password, border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.lock))),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(onPressed: isSubmitting ? null : () => Navigator.of(dialogContext).pop(false), child: Text(l10n.cancel)),
+                    ElevatedButton(onPressed: isSubmitting ? null : submit, child: isSubmitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : Text(l10n.save)),
+                  ],
+                );
+              },
             );
           },
         );
