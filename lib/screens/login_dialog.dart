@@ -4,6 +4,7 @@
 /// - 로그인 성공 시 JWT 토큰 저장
 /// - 회원가입 화면으로 이동 가능
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:provider/provider.dart';
 import '../utils/validators.dart';
 import '../screens/register_dialog.dart';
