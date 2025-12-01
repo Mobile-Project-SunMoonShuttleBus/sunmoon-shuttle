@@ -27,6 +27,7 @@ class LoginProvider extends ChangeNotifier {
         await _authService.saveTokens(
           accessToken: response.accessToken!,
           refreshToken: response.refreshToken,
+          expiresIn: response.expiresIn, // 만료 시간 전달
           userId: response.profile?.userId,
         );
         _isLoading = false;
