@@ -42,19 +42,15 @@ class _RegisterDialogState extends State<RegisterDialog> {
     if (!mounted) return;
 
     if (success) {
-      // 성공 시 스낵바 표시 및 화면 닫기
-      // 회원가입 성공 시 아이디와 비밀번호를 반환하여 자동 로그인 처리
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('회원가입이 완료되었습니다.'),
-          backgroundColor: Colors.green,
-        ),
-      );
-      Navigator.of(context).pop({
-        'success': true,
-        'userId': _idCtrl.text.trim(),
-        'password': _pwCtrl.text,
-      });
+      // 성공 시 아이디와 비밀번호를 반환하여 자동 로그인 처리
+      // 스낵바는 자동 로그인 성공 후 표시하도록 login_dialog에서 처리
+      if (mounted) {
+        Navigator.of(context).pop({
+          'success': true,
+          'userId': _idCtrl.text.trim(),
+          'password': _pwCtrl.text,
+        });
+      }
     } else {
       // 실패 시 에러 메시지 표시
       final errorMsg = provider.errorMessage ?? '회원가입 실패';
