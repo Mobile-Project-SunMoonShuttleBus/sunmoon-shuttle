@@ -304,6 +304,15 @@ class NoticeApi {
         return status != null && (status == 200 || status == 409 || status == 500);
       },
     ));
+    
+    // 타임아웃 설정 확인 로그
+    if (kDebugMode) {
+      print('🔵 syncDio 타임아웃 설정:');
+      print('  - connectTimeout: ${syncDio.options.connectTimeout}');
+      print('  - sendTimeout: ${syncDio.options.sendTimeout}');
+      print('  - receiveTimeout: ${syncDio.options.receiveTimeout}');
+    }
+    
     syncDio.interceptors.add(AuthInterceptor());
 
     // Options는 타임아웃을 받지 않음 (BaseOptions에서 이미 설정됨)
