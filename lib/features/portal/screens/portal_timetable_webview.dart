@@ -225,9 +225,6 @@ class _PortalTimetableWebViewScreenState
 
     try {
       await _controller.runJavaScript(script);
-      if (kDebugMode) {
-        print('✅ 자동 로그인 스크립트 실행 완료');
-      }
     } catch (e) {
       if (kDebugMode) {
         print('❌ 자동 로그인 스크립트 실행 실패: $e');
