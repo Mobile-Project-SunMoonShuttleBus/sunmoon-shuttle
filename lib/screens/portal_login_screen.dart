@@ -58,11 +58,18 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
       var response = await TimetableApi.I.getTimetable();
 
       if (kDebugMode) {
+        // 월~금만 필터링 (토, 일 제외)
+        final weekdayKeys = response.timetable.keys
+            .where((day) => _orderedDays.contains(day))
+            .toList();
+        final weekdayCount = _orderedDays.fold<int>(
+            0, (sum, day) => sum + (response.timetable[day]?.length ?? 0));
+        
         print('📋 시간표 응답 받음:');
         print('  - success: ${response.success}');
-        print('  - count: ${response.count}');
+        print('  - count: ${response.count} (전체) / $weekdayCount (월~금)');
         print('  - crawlingStatus: ${response.crawlingStatus}');
-        print('  - timetable keys: ${response.timetable.keys.toList()}');
+        print('  - timetable keys: $weekdayKeys (월~금만)');
       }
 
       // 크롤링 대기가 필요하고 아직 완료되지 않은 경우
