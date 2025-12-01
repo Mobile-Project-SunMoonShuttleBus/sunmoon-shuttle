@@ -34,97 +34,11 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
   static const int _startHour = 9;
   static const int _endHour = 19; 
 
-<<<<<<< HEAD
-  Future<void> _openPortalWebView() async {
-    // 먼저 ID/PW를 입력받음
-    final accountInfo = await _showPortalAccountInputDialog();
-    
-    if (accountInfo == null) {
-      // 사용자가 취소한 경우
-      return;
-    }
-
-    // WebView 화면으로 이동하면서 ID/PW 전달, 로그인 성공 시 true 반환 기대
-    final result = await Navigator.push<Map<String, dynamic>?>(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PortalTimetableWebViewScreen(
-          schoolId: accountInfo['schoolId'] as String,
-          schoolPassword: accountInfo['schoolPassword'] as String,
-        ),
-      ),
-    );
-
-    if (result != null && result['success'] == true) {
-      // 로그인 성공 시 입력받은 정보를 서버에 저장
-      await _handlePortalLoginSuccess(
-        schoolId: accountInfo['schoolId'] as String,
-        schoolPassword: accountInfo['schoolPassword'] as String,
-      );
-    } else {
-      if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('포털 로그인에 실패했거나 취소되었습니다.'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-  }
-
-  Future<void> _handlePortalLoginSuccess({
-    required String schoolId,
-    required String schoolPassword,
-  }) async {
-    if (!mounted) return;
-
-    // 로딩 표시
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
-    );
-
-    try {
-      // 입력받은 정보를 서버에 저장
-      await AuthRepository.I.saveSchoolAccount(
-        schoolId: schoolId,
-        schoolPassword: schoolPassword,
-      );
-
-      if (!mounted) return;
-      Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('계정 정보가 서버에 저장되었습니다. 자동 크롤링이 실행됩니다. (약 10~30초)'),
-          duration: Duration(seconds: 4),
-          backgroundColor: Colors.green,
-        ),
-      );
-
-      await _fetchTimetableFromServer(waitForCrawling: true);
-    } catch (e) {
-      if (!mounted) return;
-      Navigator.of(context).pop(); // 로딩 다이얼로그 닫기
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('계정 정보 저장 실패: ${e.toString()}'),
-          backgroundColor: Colors.red,
-        ),
-      );
-    }
-=======
   @override
   void initState() {
     super.initState();
     // 화면 진입 시 서버에서 시간표 데이터 조회
     _fetchTimetableFromServer();
->>>>>>> f110e58bb7fd74024b6752e3978237cce5b26de7
   }
 
   // 서버 API 호출
@@ -134,7 +48,6 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
     try {
       var response = await TimetableApi.I.getTimetable();
 
-<<<<<<< HEAD
       // 크롤링 대기가 필요하고 아직 완료되지 않은 경우
       // 하지만 데이터가 이미 있으면 (count > 0) 바로 표시
       if (waitForCrawling && response.crawlingStatus != 'completed') {
@@ -151,12 +64,6 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
             response = await TimetableApi.I.getTimetable();
           }
         }
-=======
-      // 크롤링 대기 로직 (1번 코드 기능)
-      if (waitForCrawling && response.crawlingStatus != 'completed') {
-        final completed = await _waitForCrawlingComplete(response);
-        if (completed != null) response = completed;
->>>>>>> f110e58bb7fd74024b6752e3978237cce5b26de7
       }
 
       _assignColors(response); // 과목 색상 할당
@@ -189,21 +96,14 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
       await Future.delayed(pollInterval);
       try {
         latest = await TimetableApi.I.getTimetable();
-<<<<<<< HEAD
         
         // 크롤링이 완료되었거나 데이터가 있으면 반환
         if (latest.crawlingStatus == 'completed' || latest.count > 0) {
           return latest;
         }
       } catch (e) {
-        if (kDebugMode) {
-          print('⚠️ 크롤링 상태 확인 중 에러: $e');
-        }
         // 에러가 발생해도 계속 시도
       }
-=======
-      } catch (_) {}
->>>>>>> f110e58bb7fd74024b6752e3978237cce5b26de7
     }
     return latest;
   }
