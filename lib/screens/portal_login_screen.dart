@@ -32,10 +32,8 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
   final Map<String, Color> _subjectColorMap = {};
 
   // 시간표 그리드 설정 (9시 ~ 19시)
-  // 요일은 로컬라이제이션을 위해 함수로 처리
-  List<String> _getOrderedDays(bool isKorean) {
-    return isKorean ? ['월', '화', '수', '목', '금'] : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri'];
-  }
+  // 서버 데이터는 한국어 요일 키를 사용하므로 한국어 유지
+  static const List<String> _orderedDays = ['월', '화', '수', '목', '금'];
   static const double _columnWidth = 65.0; // 칸 너비 조정
   static const double _cellHeight = 60.0;
   static const int _startHour = 9;
@@ -411,34 +409,39 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // 데이터가 있고 실제로 과목이 있는지 확인 (월~금만 체크)
-    bool hasData = false;
-    if (_timetableData != null) {
-      // 월~금 중 하나라도 과목이 있으면 데이터가 있는 것으로 간주
-      hasData = _orderedDays.any((day) => 
-        _timetableData!.timetable[day] != null && 
-        _timetableData!.timetable[day]!.isNotEmpty
-      ) || _timetableData!.count > 0;
-    }
+    // SettingsProvider를 watch하여 언어 변경 감지
+    return Consumer<SettingsProvider>(
+      builder: (context, settings, _) {
+        final l10n = AppLocalizations(settings.isKorean);
+        
+        // 데이터가 있고 실제로 과목이 있는지 확인 (월~금만 체크)
+        bool hasData = false;
+        if (_timetableData != null) {
+          // 월~금 중 하나라도 과목이 있으면 데이터가 있는 것으로 간주
+          hasData = _orderedDays.any((day) => 
+            _timetableData!.timetable[day] != null && 
+            _timetableData!.timetable[day]!.isNotEmpty
+          ) || _timetableData!.count > 0;
+        }
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('학기 시간표'), 
-        centerTitle: true, 
-        elevation: 0, 
-        backgroundColor: Colors.white, 
-        foregroundColor: Colors.black,
-        actions: [
-          // 새로고침 버튼 추가
-          IconButton(
-            icon: const Icon(Icons.refresh),
-            onPressed: () {
-              _fetchTimetableFromServer();
-            },
-            tooltip: '새로고침',
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(l10n.timetableTitle), 
+            centerTitle: true, 
+            elevation: 0, 
+            backgroundColor: Colors.white, 
+            foregroundColor: Colors.black,
+            actions: [
+              // 새로고침 버튼 추가
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: () {
+                  _fetchTimetableFromServer();
+                },
+                tooltip: l10n.refresh,
+              ),
+            ],
           ),
-        ],
-      ),
       body: Column(
         children: [
           // 상단 컨트롤 영역
@@ -454,24 +457,24 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                     children: [
                       if (_timetableData!.lastCrawledAt != null)
                         Text(
-                          '업데이트: ${_timetableData!.lastCrawledAt!.month}/${_timetableData!.lastCrawledAt!.day}',
+                          '${l10n.updating}: ${_timetableData!.lastCrawledAt!.month}/${_timetableData!.lastCrawledAt!.day}',
                           style: const TextStyle(fontSize: 12, color: Colors.grey),
                         )
                       else if (_timetableData!.crawlingStatus == 'crawling')
-                        const Text(
-                          '크롤링 중...',
-                          style: TextStyle(fontSize: 12, color: Colors.blue),
+                        Text(
+                          l10n.crawling,
+                          style: const TextStyle(fontSize: 12, color: Colors.blue),
                         )
                       else
-                        const Text('데이터 없음', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                        Text(l10n.noData, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                       if (_timetableData!.crawlingStatus == 'crawling')
-                        const Text(
-                          '시간표를 가져오는 중입니다',
-                          style: TextStyle(fontSize: 10, color: Colors.blue),
+                        Text(
+                          l10n.fetchingTimetableMessage,
+                          style: const TextStyle(fontSize: 10, color: Colors.blue),
                         )
                       else if (_timetableData!.count > 0)
                         Text(
-                          '과목 ${_timetableData!.count}개',
+                          '${l10n.subjectsCount} ${_timetableData!.count}',
                           style: const TextStyle(fontSize: 10, color: Colors.grey),
                         ),
                     ],
