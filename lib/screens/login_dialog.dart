@@ -100,14 +100,24 @@ class _LoginDialogState extends State<LoginDialog> {
 
   // 회원가입 다이얼로그를 여는 메서드
   Future<void> _openRegister() async {
+    if (kDebugMode) {
+      print('🔵 회원가입 다이얼로그 열기');
+    }
     final result = await showDialog(
       context: context,
       builder: (_) => const RegisterDialog(),
     );
+    if (kDebugMode) {
+      print('🔵 회원가입 다이얼로그 결과: $result');
+    }
     // 회원가입이 성공적으로 완료되면 자동 로그인 수행
     if (result != null && result is Map && result['success'] == true && mounted) {
       final userId = result['userId'] as String?;
       final password = result['password'] as String?;
+      
+      if (kDebugMode) {
+        print('🔵 회원가입 성공, 자동 로그인 시작: userId=$userId');
+      }
       
       if (userId != null && password != null) {
         // 회원가입 성공 시 자동 로그인 수행
@@ -117,9 +127,16 @@ class _LoginDialogState extends State<LoginDialog> {
           password: password,
         );
         
+        if (kDebugMode) {
+          print('🔵 자동 로그인 결과: $success');
+        }
+        
         if (!mounted) return;
         
         if (success) {
+          if (kDebugMode) {
+            print('🔵 자동 로그인 성공, AuthProvider 상태 업데이트 시작');
+          }
           // 로그인 성공 - AuthProvider 인증 상태 업데이트
           // rootContext를 사용하여 HomePage의 AuthProvider에 접근
           final rootCtx = widget.rootContext ?? context;
@@ -127,31 +144,49 @@ class _LoginDialogState extends State<LoginDialog> {
             try {
               final authProvider = rootCtx.read<AuthProvider>();
               authProvider.setAuthenticated(true);
+              if (kDebugMode) {
+                print('🔵 AuthProvider 상태 업데이트 완료, 로그인 다이얼로그 닫기');
+              }
               // 상태 업데이트 후 다이얼로그 닫기
               if (mounted) {
                 Navigator.of(context).pop(true);
               }
             } catch (e) {
+              if (kDebugMode) {
+                print('🔴 rootContext에서 AuthProvider 찾기 실패: $e');
+              }
               // AuthProvider를 찾을 수 없는 경우, context를 통해 접근 시도
               if (context.mounted) {
                 final authProvider = context.read<AuthProvider>();
                 authProvider.setAuthenticated(true);
+                if (kDebugMode) {
+                  print('🔵 context에서 AuthProvider 찾기 성공, 로그인 다이얼로그 닫기');
+                }
                 if (mounted) {
                   Navigator.of(context).pop(true);
                 }
               }
             }
           } else {
+            if (kDebugMode) {
+              print('🔴 rootContext가 mounted되지 않음');
+            }
             // rootContext가 없으면 현재 context 사용
             if (context.mounted) {
               final authProvider = context.read<AuthProvider>();
               authProvider.setAuthenticated(true);
+              if (kDebugMode) {
+                print('🔵 context에서 AuthProvider 찾기 성공, 로그인 다이얼로그 닫기');
+              }
               if (mounted) {
                 Navigator.of(context).pop(true);
               }
             }
           }
         } else {
+          if (kDebugMode) {
+            print('🔴 자동 로그인 실패');
+          }
           // 자동 로그인 실패 - 에러 메시지 표시
           final settingsProvider = context.read<SettingsProvider>();
           final l10n = AppLocalizations(settingsProvider.isKorean);
@@ -163,6 +198,14 @@ class _LoginDialogState extends State<LoginDialog> {
             ),
           );
         }
+      } else {
+        if (kDebugMode) {
+          print('🔴 userId 또는 password가 null');
+        }
+      }
+    } else {
+      if (kDebugMode) {
+        print('🔵 회원가입 실패 또는 취소됨');
       }
     }
   }
