@@ -58,16 +58,9 @@ class _MainScreenState extends State<MainScreen> {
   /// 현재 위치 가져오기
   Future<void> _getCurrentLocation() async {
     try {
-      if (kDebugMode) {
-        print('🔵 현재 위치 가져오기 시작');
-      }
-      
       // 위치 서비스 활성화 여부 확인
       bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
       if (!serviceEnabled) {
-        if (kDebugMode) {
-          print('⚠️ 위치 서비스가 비활성화되어 있습니다.');
-        }
         setState(() {
           _isLoadingLocation = false;
         });
@@ -79,9 +72,6 @@ class _MainScreenState extends State<MainScreen> {
       if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
         if (permission == LocationPermission.denied) {
-          if (kDebugMode) {
-            print('⚠️ 위치 권한이 거부되었습니다.');
-          }
           setState(() {
             _isLoadingLocation = false;
           });
@@ -90,9 +80,6 @@ class _MainScreenState extends State<MainScreen> {
       }
 
       if (permission == LocationPermission.deniedForever) {
-        if (kDebugMode) {
-          print('⚠️ 위치 권한이 영구적으로 거부되었습니다.');
-        }
         setState(() {
           _isLoadingLocation = false;
         });
@@ -101,9 +88,6 @@ class _MainScreenState extends State<MainScreen> {
 
       // 현재 위치 가져오기
       Position position = await Geolocator.getCurrentPosition();
-      if (kDebugMode) {
-        print('✅ 현재 위치: ${position.latitude}, ${position.longitude}');
-      }
       
       setState(() {
         _currentLatitude = position.latitude;
@@ -134,17 +118,11 @@ class _MainScreenState extends State<MainScreen> {
   Future<void> _startCongestionTracking() async {
     // 버스 운영 시간 확인
     if (!CongestionService.I.isBusOperatingTime(DateTime.now())) {
-      if (kDebugMode) {
-        print('⚠️ 버스 운영 시간이 아니므로 혼잡도 추적을 시작하지 않습니다.');
-      }
       return;
     }
 
     // 이미 추적 중이면 중복 시작하지 않음
     if (CongestionService.I.isTracking) {
-      if (kDebugMode) {
-        print('⚠️ 혼잡도 추적이 이미 시작되어 있습니다.');
-      }
       return;
     }
 
@@ -152,15 +130,9 @@ class _MainScreenState extends State<MainScreen> {
       // 백그라운드에서도 작동하도록 자동 추적 시작
       await CongestionService.I.startAutoTracking(
         onError: (error) {
-          if (kDebugMode) {
-            print('⚠️ 혼잡도 추적 오류: $error');
-          }
           // 사용자에게는 조용히 실패 (필요시 스낵바로 알림 가능)
         },
       );
-      if (kDebugMode) {
-        print('✅ 혼잡도 자동 추적 시작 (백그라운드 지원)');
-      }
     } catch (e) {
       if (kDebugMode) {
         print('⚠️ 혼잡도 추적 시작 실패: $e');

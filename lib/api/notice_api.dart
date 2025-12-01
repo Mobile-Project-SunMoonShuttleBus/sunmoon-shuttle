@@ -304,25 +304,11 @@ class NoticeApi {
         return status != null && (status == 200 || status == 409 || status == 500);
       },
     ));
-    
-    // 타임아웃 설정 확인 로그
-    if (kDebugMode) {
-      print('🔵 syncDio 타임아웃 설정:');
-      print('  - connectTimeout: ${syncDio.options.connectTimeout}');
-      print('  - sendTimeout: ${syncDio.options.sendTimeout}');
-      print('  - receiveTimeout: ${syncDio.options.receiveTimeout}');
-    }
-    
     syncDio.interceptors.add(AuthInterceptor());
 
     // Options는 타임아웃을 받지 않음 (BaseOptions에서 이미 설정됨)
     final opts = Options();
     AuthService.I.attachAuthHeader(opts);
-
-    if (kDebugMode) {
-      print('셔틀 공지 동기화 요청: POST /api/notices/shuttle/sync');
-      print('동기화 타임아웃: 연결 10분, 전송 10분, 응답 대기 30분 (LLM 처리 시간 고려)');
-    }
 
     try {
       final resp = await syncDio.post(
