@@ -259,6 +259,17 @@ class _HomePageState extends State<HomePage> {
           if (mounted) {
             if (loginResult == true) {
               authProvider.setAuthenticated(true);
+              // 로그인 성공 후 공지사항 자동 동기화 시작
+              // MainScreen의 initState에서도 실행되지만, 로그인 직후에도 실행하여 최신 공지 확보
+              WidgetsBinding.instance.addPostFrameCallback((_) {
+                if (mounted) {
+                  // MainScreen이 이미 마운트되어 있다면 동기화는 MainScreen에서 처리됨
+                  // 여기서는 로그만 남김
+                  if (kDebugMode) {
+                    print('🔵 로그인 성공 - 공지사항 동기화는 MainScreen에서 자동 실행됩니다.');
+                  }
+                }
+              });
             }
           }
         } else {

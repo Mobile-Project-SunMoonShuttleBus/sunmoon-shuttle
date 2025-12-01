@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kDebugMode, kIsWeb;
 import 'package:provider/provider.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:dio/dio.dart';
 import 'settings_screen.dart';
 import '../features/portal/screens/portal_timetable_webview.dart';
 import '../features/portal/screens/timetable_screen.dart';
@@ -167,22 +168,31 @@ class _MainScreenState extends State<MainScreen> {
     }
   }
 
-  /// 앱 시작 시 공지 동기화 (에러 발생해도 앱은 정상 동작)
+  /// 앱 시작 시 공지 동기화 (백그라운드에서 조용히 실행)
+  /// - 로그인 성공 후 자동으로 크롤링 및 동기화 수행
+  /// - 에러 발생해도 앱은 정상 동작하도록 조용히 처리
   Future<void> _syncNoticesOnStartup() async {
     try {
       if (kDebugMode) {
-        print('🔵 앱 시작 시 공지 동기화 시작');
+        print('🔵 앱 시작 시 공지 동기화 시작 (백그라운드 크롤링)');
       }
+      
+      // 백그라운드에서 조용히 동기화 실행 (사용자 알림 없음)
       await NoticeApi.I.syncShuttleNotices();
+      
       if (kDebugMode) {
         print('✅ 앱 시작 시 공지 동기화 완료');
       }
     } catch (e) {
       // 동기화 실패해도 앱은 정상 동작하도록 에러만 로깅
+      // 사용자에게는 알림하지 않음 (백그라운드 작업이므로)
       if (kDebugMode) {
-        print('⚠️ 앱 시작 시 공지 동기화 실패: $e');
+        print('⚠️ 앱 시작 시 공지 동기화 실패 (백그라운드): $e');
+        if (e is DioException) {
+          print('  - 에러 타입: ${e.type}');
+          print('  - 상태 코드: ${e.response?.statusCode}');
+        }
       }
-      // 사용자에게는 조용히 실패 (필요시 스낵바로 알림 가능)
     }
   }
 
