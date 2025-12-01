@@ -145,25 +145,13 @@ class _MainScreenState extends State<MainScreen> {
   /// - 에러 발생해도 앱은 정상 동작하도록 조용히 처리
   Future<void> _syncNoticesOnStartup() async {
     try {
-      if (kDebugMode) {
-        print('🔵 앱 시작 시 공지 동기화 시작 (백그라운드 크롤링)');
-      }
-      
       // 백그라운드에서 조용히 동기화 실행 (사용자 알림 없음)
       await NoticeApi.I.syncShuttleNotices();
-      
-      if (kDebugMode) {
-        print('✅ 앱 시작 시 공지 동기화 완료');
-      }
     } catch (e) {
       // 동기화 실패해도 앱은 정상 동작하도록 에러만 로깅
       // 사용자에게는 알림하지 않음 (백그라운드 작업이므로)
       if (kDebugMode) {
-        print('⚠️ 앱 시작 시 공지 동기화 실패 (백그라운드): $e');
-        if (e is DioException) {
-          print('  - 에러 타입: ${e.type}');
-          print('  - 상태 코드: ${e.response?.statusCode}');
-        }
+        print('⚠️ 앱 시작 시 공지 동기화 실패: $e');
       }
     }
   }
@@ -242,9 +230,6 @@ class _MainScreenState extends State<MainScreen> {
                                   mapType: NMapType.basic,
                                 ),
                                 onMapReady: (controller) async {
-                                  if (kDebugMode) {
-                                    print('🔵 지도 준비 완료');
-                                  }
                                   _mapController = controller;
                                   setState(() {
                                     _isMapReady = true;
@@ -263,15 +248,9 @@ class _MainScreenState extends State<MainScreen> {
                                     id: 'current_location',
                                     position: NLatLng(_currentLatitude, _currentLongitude),
                                   ));
-                                  
-                                  if (kDebugMode) {
-                                    print('✅ 지도 초기화 및 마커 추가 완료');
-                                  }
                                 },
                                 onMapTapped: (point, latLng) {
-                                  if (kDebugMode) {
-                                    print('🔵 지도 탭: $latLng');
-                                  }
+                                  // 지도 탭 처리 (필요시 구현)
                                 },
                               ),
                     // 탑승위치/탑승시간 정보 박스
