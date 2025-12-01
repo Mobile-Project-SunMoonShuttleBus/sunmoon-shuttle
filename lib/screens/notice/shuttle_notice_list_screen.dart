@@ -87,11 +87,12 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
           }
         }
         
+        final llmFailuresCount = response is Map<String, dynamic> ? (response['llmFailures'] ?? 0) : 0;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(message),
-            duration: Duration(seconds: llmFailures > 0 ? 5 : 3),
-            backgroundColor: (response['llmFailures'] ?? 0) > 0 ? Colors.orange : Colors.green,
+            duration: Duration(seconds: llmFailuresCount > 0 ? 5 : 3),
+            backgroundColor: llmFailuresCount > 0 ? Colors.orange : Colors.green,
           ),
         );
         // 동기화 완료 후 잠시 대기 후 리스트 새로고침 (서버에서 데이터 준비 시간 고려)
