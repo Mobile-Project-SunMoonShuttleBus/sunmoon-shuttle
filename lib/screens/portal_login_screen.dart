@@ -85,10 +85,12 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
           
           // 사용자에게 크롤링 중임을 알림
           if (mounted) {
+            final settings = Provider.of<SettingsProvider>(context, listen: false);
+            final l10n = AppLocalizations(settings.isKorean);
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('시간표를 가져오는 중입니다. 잠시만 기다려주세요...'),
-                duration: Duration(seconds: 5),
+              SnackBar(
+                content: Text(l10n.fetchingTimetable),
+                duration: const Duration(seconds: 5),
                 backgroundColor: Colors.blue,
               ),
             );
@@ -110,10 +112,12 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
             if (!hasDataAfterWait && response.count == 0) {
               // 크롤링이 완료되었지만 데이터가 없는 경우
               if (mounted) {
+                final settings = Provider.of<SettingsProvider>(context, listen: false);
+                final l10n = AppLocalizations(settings.isKorean);
                 ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('시간표 데이터를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.'),
-                    duration: Duration(seconds: 4),
+                  SnackBar(
+                    content: Text(l10n.timetableFetchFailed),
+                    duration: const Duration(seconds: 4),
                     backgroundColor: Colors.orange,
                   ),
                 );
@@ -132,10 +136,12 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
             ) && response.count == 0;
             
             if (stillNoData && mounted) {
+              final settings = Provider.of<SettingsProvider>(context, listen: false);
+              final l10n = AppLocalizations(settings.isKorean);
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(
-                  content: Text('시간표를 가져오는데 시간이 오래 걸리고 있습니다. 잠시 후 새로고침을 해주세요.'),
-                  duration: Duration(seconds: 5),
+                SnackBar(
+                  content: Text(l10n.timetableFetchTimeout),
+                  duration: const Duration(seconds: 5),
                   backgroundColor: Colors.orange,
                 ),
               );
@@ -480,12 +486,12 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                     ],
                   )
                 else
-                  const Text('로딩 중...', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  Text(l10n.loading, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 
                 ElevatedButton.icon(
                   onPressed: _isLoadingTimetable ? null : _openPortalWebView,
                   icon: const Icon(Icons.sync, size: 16),
-                  label: const Text('포털 연동'),
+                  label: Text(l10n.portalLink),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue[700],
                     foregroundColor: Colors.white,
@@ -518,8 +524,8 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                     const SizedBox(height: 16),
                     Text(
                       _timetableData?.crawlingStatus == 'crawling'
-                        ? "시간표를 가져오는 중입니다.\n잠시만 기다려주세요..."
-                        : "연동된 시간표가 없습니다.\n'포털 연동' 버튼을 눌러주세요.",
+                        ? l10n.fetchingTimetable
+                        : l10n.noTimetableMessage,
                       textAlign: TextAlign.center, 
                       style: TextStyle(
                         color: _timetableData?.crawlingStatus == 'crawling' 
@@ -541,13 +547,15 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
               ),
             )
           else
-            Expanded(child: _buildTimetableGrid()),
+            Expanded(child: _buildTimetableGrid(l10n)),
         ],
       ),
     );
+      },
+    );
   }
 
-  Widget _buildTimetableGrid() {
+  Widget _buildTimetableGrid(AppLocalizations l10n) {
     final totalHeight = (_endHour - _startHour) * _cellHeight;
 
     return SingleChildScrollView(
