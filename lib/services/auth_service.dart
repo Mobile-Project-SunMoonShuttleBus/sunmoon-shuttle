@@ -1,10 +1,7 @@
-/// 인증 서비스 - JWT 토큰 및 프로필 정보 관리
-/// - accessToken: 메모리 저장 (만료 시간 관리)
-/// - refreshToken: secure_storage 저장 (자동 로그인용)
-/// - profile.userId: SharedPreferences 저장 (자동채움용)
 import 'package:dio/dio.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
-import '../features/auth/services/profile_storage_service.dart';
+// [수정] 같은 폴더 내에 있는 파일이므로 경로 단순화
+import 'profile_storage_service.dart';
 
 class AuthService {
   AuthService._internal();
@@ -34,8 +31,7 @@ class AuthService {
     // accessToken은 서버에서 새로 발급받아야 하므로 로드하지 않음
     final refreshToken = await _storage.read(key: _keyRefreshToken);
     if (refreshToken != null) {
-      // refreshToken이 있으면 자동 로그인 시도 가능 (SS-01과 연동)
-      // 여기서는 단순히 로드만 함
+      // refreshToken이 있으면 자동 로그인 시도 가능
     }
   }
 

@@ -24,4 +24,3 @@ class ProfileStorageService {
     await prefs.remove(_keyUserId);
   }
 }
-

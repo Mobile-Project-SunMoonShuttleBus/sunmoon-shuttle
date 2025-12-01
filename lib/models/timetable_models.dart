@@ -103,4 +103,3 @@ class TimetableSubject {
     return endDateTime.difference(startDateTime).inMinutes / 60.0;
   }
 }
-

@@ -1,6 +1,4 @@
 /// 로그인 API 응답 모델
-/// - 서버로부터 받은 로그인 응답 데이터 구조화
-/// - accessToken, refreshToken, 프로필 정보 포함
 class LoginResponseModel {
   final String message;
   final String? accessToken;
@@ -16,7 +14,6 @@ class LoginResponseModel {
     this.profile,
   });
 
-  /// Map에서 LoginResponseModel 생성
   factory LoginResponseModel.fromMap(Map<String, dynamic> map) {
     return LoginResponseModel(
       message: map['message']?.toString() ?? '로그인 실패',
@@ -29,20 +26,15 @@ class LoginResponseModel {
     );
   }
 
-  /// 성공 여부 확인
   bool get isSuccess => accessToken != null && accessToken!.isNotEmpty;
 }
 
 /// 프로필 모델
 class ProfileModel {
   final String userId;
-
   ProfileModel({required this.userId});
 
   factory ProfileModel.fromMap(Map<String, dynamic> map) {
-    return ProfileModel(
-      userId: map['userId']?.toString() ?? '',
-    );
+    return ProfileModel(userId: map['userId']?.toString() ?? '');
   }
 }
-

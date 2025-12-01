@@ -46,8 +46,6 @@ class ShuttleNoticeSummary {
 }
 
 /// 셔틀 공지 상세용 모델
-/// API 응답: { "_id": "...", "portalNoticeId": "...", "title": "...", "content": "...", 
-///            "summary": "...", "url": "...", "postedAt": "...", "createdAt": "...", "updatedAt": "..." }
 class ShuttleNoticeDetail {
   final String id;
   final String portalNoticeId; // 포털 공지 ID
@@ -93,7 +91,7 @@ class ShuttleNoticeDetail {
         throw FormatException('공지 내용이 없습니다. JSON: $json');
       }
 
-      // summary는 null이거나 빈 문자열일 수 있음 (LLM 요약이 없으면 서버에서 생성 중일 수 있음)
+      // summary는 null이거나 빈 문자열일 수 있음
       final summary = (json['summary'] ?? '') as String? ?? '';
 
       final url = json['url'] as String?;
@@ -111,18 +109,14 @@ class ShuttleNoticeDetail {
       if (json['createdAt'] != null) {
         try {
           createdAt = DateTime.parse(json['createdAt'] as String);
-        } catch (e) {
-          // 파싱 실패해도 계속 진행
-        }
+        } catch (e) {}
       }
 
       DateTime? updatedAt;
       if (json['updatedAt'] != null) {
         try {
           updatedAt = DateTime.parse(json['updatedAt'] as String);
-        } catch (e) {
-          // 파싱 실패해도 계속 진행
-        }
+        } catch (e) {}
       }
 
       return ShuttleNoticeDetail(
@@ -147,4 +141,3 @@ class ShuttleNoticeDetail {
 
   bool get hasSummary => summary.trim().isNotEmpty;
 }
-

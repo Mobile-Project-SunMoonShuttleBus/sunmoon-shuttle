@@ -1,10 +1,10 @@
+import 'package:dio/dio.dart';
+import '../../core/cache/cache_manager.dart'; // [수정됨] 경로 맞춤
+import '../../core/cache/cache_item.dart';    // [수정됨] 경로 맞춤
+import '../../core/utils/app_logger.dart';    // [수정됨] 경로 맞춤
+
 /// 캐시 인터셉터
 /// 요청 전 캐시 확인, 응답 후 캐시 저장
-import 'package:dio/dio.dart';
-import '../../cache/cache_manager.dart';
-import '../../cache/cache_item.dart';
-import '../../utils/app_logger.dart';
-
 class CacheInterceptor extends Interceptor {
   final CacheManager _cacheManager = CacheManager.I;
 
@@ -80,18 +80,16 @@ class CacheInterceptor extends Interceptor {
   }
 
   /// 캐시 키 생성
-  /// query parameter도 포함하여 고유한 캐시 키 생성
   String? _getCacheKey(RequestOptions options) {
     final path = options.path;
     final queryParams = options.queryParameters;
     
-    // 경로에 따라 캐시 키 결정
     String? baseCacheKey;
     if (path.contains('/api/shuttle/favorites') || path.contains('/api/shuttle/next')) {
       baseCacheKey = CacheKeys.favorites;
     } else if (path.contains('/api/shuttle/crowd') || path.contains('/api/shuttle/snapshot')) {
       baseCacheKey = CacheKeys.crowdSnapshots;
-    } else if (path.contains('/api/shuttle/timetable') || path.contains('/api/shuttle/schedule')) {
+    } else if (path.contains('/api/shuttle/timetable') || path.contains('/api/shuttle/schedule') || path.contains('/api/shuttle/schedules')) {
       baseCacheKey = CacheKeys.timetable;
     } else if (path.contains('/api/notices') || path.contains('/api/announcements')) {
       baseCacheKey = CacheKeys.notices;
@@ -117,7 +115,6 @@ class CacheInterceptor extends Interceptor {
 
   /// 캐시 TTL 결정
   Duration? _getTTL(String cacheKey) {
-    // query parameter가 포함된 경우 baseCacheKey만 추출
     final baseKey = cacheKey.split('?').first;
     
     switch (baseKey) {
@@ -134,14 +131,11 @@ class CacheInterceptor extends Interceptor {
     }
   }
 
-  /// 캐시 데이터 조회
   Future<dynamic> _getCachedData(String cacheKey) async {
     try {
       return await _cacheManager.getCache(cacheKey);
     } catch (e) {
-      AppLogger.error('CacheInterceptor', '캐시 조회 오류: $cacheKey', e is Error ? e.stackTrace : null);
       return null;
     }
   }
 }
-

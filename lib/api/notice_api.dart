@@ -1,5 +1,6 @@
 /// 공지사항 API 클라이언트
 /// 셔틀 관련 공지사항 조회 API 호출
+library;
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 import '../services/auth_service.dart';
@@ -256,17 +257,23 @@ class NoticeApi {
     // (타임아웃 없이 작동하도록 충분히 긴 시간 설정)
     final syncDio = Dio(BaseOptions(
       baseUrl: baseUrl,
+<<<<<<< HEAD
       connectTimeout: const Duration(minutes: 10), // 연결 타임아웃 (10분)
       sendTimeout: const Duration(minutes: 10), // 요청 전송 타임아웃 (10분)
       receiveTimeout: const Duration(minutes: 30), // 응답 대기 타임아웃 (30분 - LLM 처리 시간 고려)
+=======
+      connectTimeout: const Duration(hours: 1), // 연결 타임아웃 (1시간)
+      sendTimeout: const Duration(hours: 1), // 요청 전송 타임아웃 (1시간)
+      receiveTimeout: const Duration(hours: 1), // 응답 대기 타임아웃 (1시간 - LLM 처리 시간 고려)
+>>>>>>> f110e58bb7fd74024b6752e3978237cce5b26de7
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
       responseType: ResponseType.json,
       validateStatus: (status) {
-        // 200, 409, 500 모두 처리 (409: 동기화 진행 중, 500: 서버 에러)
-        return status != null && (status == 200 || status == 409 || status == 500);
+        // 200과 500 모두 처리 (500도 JSON 메시지를 포함할 수 있음)
+        return status != null && (status == 200 || status == 500);
       },
     ));
     syncDio.interceptors.add(AuthInterceptor());
@@ -315,28 +322,6 @@ class NoticeApi {
         return {'message': '셔틀 공지 동기화 완료'};
       }
 
-      // 409 응답 처리: 동기화 진행 중
-      if (resp.statusCode == 409) {
-        if (kDebugMode) {
-          print('⚠️ 셔틀 공지 동기화 진행 중 (409): ${resp.data}');
-        }
-
-        // 서버가 보낸 메시지 추출
-        String errorMessage = '이미 동기화가 진행 중입니다. 잠시 후 다시 시도해주세요.';
-        if (resp.data is Map<String, dynamic>) {
-          final errorData = resp.data as Map<String, dynamic>;
-          if (errorData.containsKey('message')) {
-            errorMessage = errorData['message'] as String;
-          } else if (errorData.containsKey('error')) {
-            errorMessage = errorData['error'] as String;
-          }
-        } else if (resp.data is String) {
-          errorMessage = resp.data as String;
-        }
-
-        throw Exception('동기화 진행 중: $errorMessage');
-      }
-
       // 500 응답 처리: 서버가 에러 메시지를 JSON으로 반환할 수 있음
       if (resp.statusCode == 500) {
         if (kDebugMode) {
@@ -369,22 +354,6 @@ class NoticeApi {
           print('응답 상태 코드: ${e.response?.statusCode}');
           print('응답 데이터: ${e.response?.data}');
         }
-      }
-      
-      // 409 에러 처리: 동기화 진행 중
-      if (e.response?.statusCode == 409) {
-        String errorMessage = '이미 동기화가 진행 중입니다. 잠시 후 다시 시도해주세요.';
-        if (e.response?.data is Map<String, dynamic>) {
-          final errorData = e.response!.data as Map<String, dynamic>;
-          if (errorData.containsKey('message')) {
-            errorMessage = errorData['message'] as String;
-          } else if (errorData.containsKey('error')) {
-            errorMessage = errorData['error'] as String;
-          }
-        } else if (e.response?.data is String) {
-          errorMessage = e.response!.data as String;
-        }
-        throw Exception('동기화 진행 중: $errorMessage');
       }
       
       // 500 에러 처리: 서버가 에러 메시지를 JSON으로 반환할 수 있음

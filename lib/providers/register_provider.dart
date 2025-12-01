@@ -1,27 +1,27 @@
+// lib/providers/register_provider.dart (최종 완성 버전)
+
 import 'package:flutter/foundation.dart';
 import '../repositories/auth_repository.dart';
-import '../services/profile_storage_service.dart';
 
 class RegisterProvider extends ChangeNotifier {
   final AuthRepository _authRepository = AuthRepository.I;
-  final ProfileStorageService _profileStorage = ProfileStorageService.I;
 
   bool _isLoading = false;
   String? _errorMessage;
-  String? _errorCode;
-
-  bool get isLoading => _isLoading;
-  String? get errorMessage => _errorMessage;
-  String? get errorCode => _errorCode;
-
-  // 실시간 유효성 검사 상태
+  
+  // --- 실시간 유효성 검사 상태 (Getter와 내부 변수) ---
   String? _userIdError;
   String? _passwordError;
   String? _passwordConfirmError;
 
+  // ✅ [필수] Screen에서 참조하는 모든 Getter
+  bool get isLoading => _isLoading;
+  String? get errorMessage => _errorMessage;
+  
   String? get userIdError => _userIdError;
   String? get passwordError => _passwordError;
   String? get passwordConfirmError => _passwordConfirmError;
+  // --------------------------------------------------
 
   /// userId 실시간 검증
   void validateUserId(String userId) {
@@ -61,31 +61,16 @@ class RegisterProvider extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// 전체 폼 유효성 검사
-  bool isFormValid(String userId, String password, String passwordConfirm) {
-    if (userId.isEmpty || password.isEmpty || passwordConfirm.isEmpty) {
-      return false;
-    }
-    if (_userIdError != null || _passwordError != null || _passwordConfirmError != null) {
-      return false;
-    }
-    if (password != passwordConfirm) {
-      return false;
-    }
-    return true;
-  }
-
-  /// 회원가입 실행
+  /// ✅ [필수] 회원가입 실행 (register 메서드)
   Future<bool> register({
     required String userId,
     required String password,
     required String passwordConfirm,
   }) async {
-    if (_isLoading) return false; // 중복 클릭 방지
+    if (_isLoading) return false;
 
     _isLoading = true;
     _errorMessage = null;
-    _errorCode = null;
     notifyListeners();
 
     try {
@@ -95,6 +80,7 @@ class RegisterProvider extends ChangeNotifier {
         passwordConfirm: passwordConfirm,
       );
 
+<<<<<<< HEAD:lib/features/auth/providers/register_provider.dart
       // 성공 판단: success 필드가 true이거나, 메시지에 성공 관련 키워드가 포함되어 있으면 성공
       final message = result['message']?.toString() ?? '';
       final messageUpper = message.toUpperCase();
@@ -107,6 +93,9 @@ class RegisterProvider extends ChangeNotifier {
 
       if (success) {
         await _profileStorage.saveUserId(userId.trim());
+=======
+      if (result['message'] == 'REGISTER_SUCCESS' || result['success'] == true) { 
+>>>>>>> f110e58bb7fd74024b6752e3978237cce5b26de7:lib/providers/register_provider.dart
         _isLoading = false;
         _errorMessage = null; // 성공 시 에러 메시지 초기화
         _errorCode = null;
@@ -115,39 +104,17 @@ class RegisterProvider extends ChangeNotifier {
       }
 
       _errorMessage = result['message']?.toString() ?? '회원가입 실패';
-      _errorCode = result['error']?.toString();
-      _isLoading = false;
-      notifyListeners();
-      return false;
-    } on RegisterException catch (e) {
-      _errorMessage = e.message;
-      _errorCode = e.error;
       _isLoading = false;
       notifyListeners();
       return false;
     } catch (e) {
-      // 예상치 못한 오류
-      _errorMessage = '회원가입 중 오류가 발생했습니다: ${e.toString()}';
-      _errorCode = null;
+      // Custom Exception 처리
+      _errorMessage = e.toString().contains('RegisterException') 
+          ? e.toString().replaceFirst('Exception: ', '')
+          : '회원가입 중 오류가 발생했습니다.';
       _isLoading = false;
       notifyListeners();
       return false;
     }
   }
-
-  /// 에러 초기화
-  void clearError() {
-    _errorMessage = null;
-    _errorCode = null;
-    notifyListeners();
-  }
-
-  /// 모든 검증 에러 초기화
-  void clearValidationErrors() {
-    _userIdError = null;
-    _passwordError = null;
-    _passwordConfirmError = null;
-    notifyListeners();
-  }
 }
-

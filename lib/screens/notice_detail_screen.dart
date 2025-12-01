@@ -3,7 +3,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:html/parser.dart' as html_parser;
 import 'package:html/dom.dart' as html_dom;
 import 'package:provider/provider.dart';
-import '../../settings/providers/settings_provider.dart';
+import '../../providers/settings_provider.dart';
 import '../../../core/localization/app_localizations.dart';
 import '../repositories/notice_repository.dart';
 import '../models/notice_model.dart';
