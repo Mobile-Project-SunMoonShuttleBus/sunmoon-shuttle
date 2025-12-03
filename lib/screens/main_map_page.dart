@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
-import '../api/dio_client.dart';
+import '../api/dio_client.dart'; 
 
 class MainMapPage extends StatefulWidget {
   const MainMapPage({super.key});
@@ -15,37 +15,57 @@ class _MainMapPageState extends State<MainMapPage> {
   NaverMapController? _mapController;
   Timer? _refreshTimer;
   
+  // ⭐️ [Mocking Logic] 테스트 시 true, 실제 사용 시 false
+  static const bool IS_MOCKING_LOCATION = true; 
+  // ⭐️ [Mocking Point] 사용자 요청에 따라 아산역 근처 좌표로 업데이트 (36.809245, 127.143216)
+  static const NLatLng MOCK_START_POINT = NLatLng(36.808163, 127.143141); 
+
   // 위치 및 경로 관련
   StreamSubscription<Position>? _positionStreamSubscription;
   NLatLng? _currentUserPosition; 
   
-  // ⭐️ [수정 완료] 선문대 공학관 셔틀 정류장 위치 좌표를 반영합니다.
-  // ⭐️ [최종 수정 완료] 메인 셔틀 정류장의 가장 안정적인 좌표를 반영합니다.
-  static const NLatLng SCHOOL_SHUTTLE_STOP = NLatLng(36.790500, 127.002500); 
+  // 셔틀 정류장 최종 좌표 (학교 내부 도착점)
+  static const NLatLng SCHOOL_SHUTTLE_STOP = NLatLng(36.8003353, 127.0713667); 
+  // 학교 내부/외부 판단을 위한 거리 기준 (미터)
+  static const double SCHOOL_BOUNDARY_RADIUS_M = 600.0; 
+  // ⭐️ 외부 셔틀장 경로 안내 최대 거리 (미터)
+  static const double MAX_WALKING_DISTANCE_M = 500.0; 
+  
+  // [경로 노드] 순서 상관없이 경로를 구성하는 지점들 (학교 내부 도보 경로에만 사용됨)
+  static const List<NLatLng> ROUTE_TO_STOP = [
+    NLatLng(36.798000, 127.074000), // Node 0
+    NLatLng(36.798500, 127.073500), // Node 1
+    NLatLng(36.799000, 127.072500), // Node 2
+    NLatLng(36.800000, 127.071500), // Node 3
+  ];
+
+  // [외부 셔틀 승차장] 각 역/터미널의 셔틀장 좌표
+  static const List<NLatLng> EXTERNAL_STOPS = [
+    NLatLng(36.794978, 127.103806), // 아산(KTX)역 [Index 0]
+    NLatLng(36.809727, 127.145230), // 천안역 [Index 1]
+    NLatLng(36.8220, 127.1810),    // 천안터미널 [Index 2]
+    NLatLng(36.7860, 127.0020),    // 온양터미널/역 [Index 3]
+  ];
 
   final Set<NMarker> _markers = {}; 
 
-  // [Method 2] 승강장까지의 도로 경로 노드 (새 좌표에 맞게 임시 경로 조정)
-  static const List<NLatLng> ROUTE_TO_STOP = [
-    NLatLng(36.790600, 127.002600), 
-    NLatLng(36.790550, 127.002550), 
-  ];
-
-  // ⭐️ [UI 상태] 선택된 목적지 역 (기본값: 아산역)
+  // UI 상태
   int _selectedStationIndex = 0;
   final List<String> _stationNames = ['아산(KTX)역', '천안역', '천안터미널', '온양터미널/역'];
   
   // UI 표시 정보
   bool _isLoading = true;
-  String _nextDepartureTime = "조회 중..."; // 셔틀 출발 시간
-  String _timeRemaining = ""; // 셔틀 남은 시간
+  String _nextDepartureTime = "조회 중..."; 
+  String _timeRemaining = ""; 
   
-  String _walkingDistance = "- m"; // 승강장까지 거리
-  String _walkingTime = "- 분"; // 승강장까지 도보 시간
+  String _walkingDistance = "- m"; 
+  String _walkingTime = "- 분"; 
+  
+  // ⭐️ [추가] 선택된 목적지가 500m 밖에 있는지 여부
+  bool _isTooFar = false; 
 
   static const double _WALKING_SPEED = 80; // 분당 80m
 
-  // 초기 카메라 (학교 승강장 근처)
   static const NCameraPosition _initialCameraPosition = NCameraPosition(
     target: SCHOOL_SHUTTLE_STOP,
     zoom: 15.5,
@@ -56,7 +76,6 @@ class _MainMapPageState extends State<MainMapPage> {
     super.initState();
     _checkPermissionAndListenLocation();
     
-    // 초기 데이터 로드 및 타이머 시작 (15초마다 갱신)
     _fetchBusData();
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _fetchBusData());
   }
@@ -67,9 +86,69 @@ class _MainMapPageState extends State<MainMapPage> {
     _refreshTimer?.cancel();
     super.dispose();
   }
+  
+  double _calculateDistance(NLatLng p1, NLatLng p2) {
+    return Geolocator.distanceBetween(
+      p1.latitude, p1.longitude,
+      p2.latitude, p2.longitude,
+    );
+  }
+  
+  bool _isUserInsideSchool() {
+    if (_currentUserPosition == null) return false;
+    
+    final distance = _calculateDistance(_currentUserPosition!, SCHOOL_SHUTTLE_STOP);
+    return distance < SCHOOL_BOUNDARY_RADIUS_M;
+  }
 
-  // 1. 위치 추적 (승강장까지의 거리 계산)
+  int _findBestEntryNode(NLatLng currentPos) {
+    int bestIndex = -1;
+    double minDistanceToUser = double.infinity;
+    double distToFinalStop = _calculateDistance(currentPos, SCHOOL_SHUTTLE_STOP);
+    
+    for (int i = 0; i < ROUTE_TO_STOP.length; i++) {
+      NLatLng node = ROUTE_TO_STOP[i];
+      double distanceToUser = _calculateDistance(currentPos, node);
+      double distanceNodeToStop = _calculateDistance(node, SCHOOL_SHUTTLE_STOP);
+      
+      if ((distanceToUser + distanceNodeToStop) > (distToFinalStop * 1.5)) {
+        continue;
+      }
+
+      if (distanceToUser < minDistanceToUser) {
+        minDistanceToUser = distanceToUser;
+        bestIndex = i;
+      }
+    }
+    return bestIndex;
+  }
+
   Future<void> _checkPermissionAndListenLocation() async {
+    if (IS_MOCKING_LOCATION) {
+        _positionStreamSubscription = Stream<Position>.periodic(const Duration(seconds: 2), (count) {
+            return Position(
+                latitude: MOCK_START_POINT.latitude,
+                longitude: MOCK_START_POINT.longitude,
+                timestamp: DateTime.now(),
+                accuracy: 0.0,
+                altitude: 0.0,
+                heading: 0.0,
+                speed: 0.0,
+                speedAccuracy: 0.0,
+                altitudeAccuracy: 0.0,
+                headingAccuracy: 0.0,
+            );
+        }).listen((Position position) {
+            final newPos = NLatLng(position.latitude, position.longitude);
+            _currentUserPosition = newPos;
+
+            if (_mapController != null) {
+                _updatePathToStop();
+            }
+        });
+        return; 
+    }
+
     bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
     if (!serviceEnabled) return;
     LocationPermission permission = await Geolocator.checkPermission();
@@ -92,37 +171,180 @@ class _MainMapPageState extends State<MainMapPage> {
             ..setIsVisible(true);
         } catch (e) {}
         
-        // 내 위치가 바뀌면 '승강장'까지의 경로 업데이트
         _updatePathToStop();
       }
     });
   }
 
-  // 2. 승강장까지의 경로 및 도보 시간 계산
   void _updatePathToStop() {
     if (_currentUserPosition == null || _mapController == null) return;
 
-    // A. 거리 계산 (내 위치 <-> 학교 승강장)
-    double dist = Geolocator.distanceBetween(
-      _currentUserPosition!.latitude, _currentUserPosition!.longitude,
-      SCHOOL_SHUTTLE_STOP.latitude, SCHOOL_SHUTTLE_STOP.longitude,
-    );
+    List<NLatLng> pathCoords = [];
+    NLatLng finalDestination;
+    
+    bool insideSchool = _isUserInsideSchool();
+    
+    if (insideSchool) {
+      // MODE 1: 학교 내부 경로 안내 (Nearest Neighbor Pathfinding)
+      
+      // 학교 내부일 경우 '너무 멀다' 상태 초기화
+      if (_isTooFar) {
+          setState(() => _isTooFar = false);
+      }
+      
+      finalDestination = SCHOOL_SHUTTLE_STOP;
+      
+      int entryIndex = _findBestEntryNode(_currentUserPosition!);
+      
+      Set<int> visitedIndices = {}; 
+      pathCoords.add(_currentUserPosition!); 
+      NLatLng lastAddedPoint = _currentUserPosition!; 
 
-    // Method 1: 보정 계수 적용 (직선거리 * 1.3)
-    double actualDist = dist * 1.3;
+      if (entryIndex != -1) {
+          if (_calculateDistance(_currentUserPosition!, finalDestination) < _calculateDistance(_currentUserPosition!, ROUTE_TO_STOP[entryIndex])) {
+              pathCoords.add(finalDestination);
+              gotoDrawPath(pathCoords, finalDestination);
+              return;
+          }
+          // ... (Nearest Neighbor Logic continues)
+          NLatLng entryNode = ROUTE_TO_STOP[entryIndex];
+          pathCoords.add(entryNode);
+          lastAddedPoint = entryNode;
+          visitedIndices.add(entryIndex);
+          
+          while (visitedIndices.length < ROUTE_TO_STOP.length) {
+              int nextNodeIndex = -1;
+              double minDistance = double.infinity;
+              
+              for (int i = 0; i < ROUTE_TO_STOP.length; i++) {
+                  if (visitedIndices.contains(i)) continue; 
+                  
+                  NLatLng candidateNode = ROUTE_TO_STOP[i];
+                  double distance = _calculateDistance(lastAddedPoint, candidateNode);
+                  
+                  if (_calculateDistance(lastAddedPoint, finalDestination) < distance) {
+                      nextNodeIndex = -2; 
+                      break;
+                  }
+                  
+                  if (distance < minDistance) {
+                      minDistance = distance;
+                      nextNodeIndex = i;
+                  }
+              }
+
+              if (nextNodeIndex == -2 || nextNodeIndex == -1) { 
+                  break;
+              } else { 
+                  lastAddedPoint = ROUTE_TO_STOP[nextNodeIndex];
+                  pathCoords.add(lastAddedPoint);
+                  visitedIndices.add(nextNodeIndex);
+              }
+          }
+      }
+      
+    } else {
+      // MODE 2: 학교 외부 경로 안내 (거리 체크 로직 추가)
+      
+      finalDestination = EXTERNAL_STOPS[_selectedStationIndex];
+      
+      // ⭐️ 핵심: 500m 거리 체크
+      double distanceToStop = _calculateDistance(_currentUserPosition!, finalDestination);
+      
+      if (distanceToStop > MAX_WALKING_DISTANCE_M) {
+        // 500m 초과 시: 지도 표시 금지, 메시지 표시 상태로 전환
+        if (!_isTooFar) {
+          setState(() {
+             _isTooFar = true;
+             // UI 클리어
+             _mapController!.deleteOverlay(const NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'path_to_stop'));
+             _mapController!.clearOverlays(type: NOverlayType.marker);
+             _walkingDistance = "- m"; 
+             _walkingTime = "- 분";
+          });
+        }
+        return; // 경로 그리기 함수 호출을 막음
+      } else {
+        // 500m 이내 시: 정상 경로 표시 상태로 전환
+        if (_isTooFar) {
+            setState(() => _isTooFar = false);
+        }
+        pathCoords.add(_currentUserPosition!);
+      }
+    }
+    
+    // '너무 멀다' 상태일 경우 경로를 그리지 않음
+    if (_isTooFar) return;
+
+    // 최종 목적지를 연결
+    if (pathCoords.last != finalDestination) {
+        pathCoords.add(finalDestination);
+    }
+    
+    gotoDrawPath(pathCoords, finalDestination);
+  }
+  
+  void gotoDrawPath(List<NLatLng> finalPathCoords, NLatLng finalDestination) {
+    // 1. 거리 및 시간 계산 
+    double dist = _calculateDistance(finalPathCoords.first, finalDestination);
+    double actualDist = dist * (_isUserInsideSchool() ? 1.3 : 1.0); 
     int walkMin = (actualDist / _WALKING_SPEED).ceil();
 
-    // B. 경로선 그리기
+    // 2. 폴리라인 초기화 및 그리기
     try { 
       _mapController!.deleteOverlay(const NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'path_to_stop'));
     } catch (e) {}
 
-    // 임시 경로를 새로운 좌표에 맞게 조정 (임시)
-    List<NLatLng> coords = [_currentUserPosition!, ...ROUTE_TO_STOP, SCHOOL_SHUTTLE_STOP];
-    final path = NPolylineOverlay(id: 'path_to_stop', coords: coords, color: Colors.blueAccent, width: 6);
-    try { _mapController!.addOverlay(path); } catch (e) {}
+    if (finalPathCoords.length >= 2) {
+      final path = NPolylineOverlay(
+        id: 'path_to_stop', 
+        coords: finalPathCoords, 
+        color: Colors.blueAccent, 
+        width: 6,
+      );
+      try { _mapController!.addOverlay(path); } catch (e) {}
+    }
 
+    // 3. 마커 업데이트 (모든 셔틀장 + 현재 목적지)
     if (mounted) {
+      _markers.clear();
+      
+      // 3-A. 외부 셔틀장 마커 4개 추가
+      for (int i = 0; i < EXTERNAL_STOPS.length; i++) {
+          _markers.add(
+            NMarker(
+              id: 'external_stop_$i',
+              position: EXTERNAL_STOPS[i],
+              caption: NOverlayCaption(text: _stationNames[i]),
+            )
+          );
+      }
+      
+      // 3-B. 학교 내부 셔틀장 마커 추가
+      _markers.add(
+        NMarker(
+          id: 'school_stop_main',
+          position: SCHOOL_SHUTTLE_STOP,
+          caption: const NOverlayCaption(text: '학교 셔틀장'),
+        )
+      );
+
+      // 3-C. 현재 안내 중인 최종 목적지 마커를 추가 (강조)
+      String destinationName = _isUserInsideSchool() 
+                             ? '학교 셔틀장 (목적지)' 
+                             : _stationNames[_selectedStationIndex] + ' (선택된 승차장)';
+                             
+      _markers.add(
+        NMarker(
+          id: 'destination_active', 
+          position: finalDestination, 
+          caption: NOverlayCaption(text: destinationName, color: Colors.red), 
+        )
+      );
+      
+      _mapController!.addOverlayAll(_markers);
+
+      // 4. UI 업데이트
       setState(() {
         _walkingDistance = actualDist > 1000 ? "${(actualDist/1000).toStringAsFixed(1)} km" : "${actualDist.toStringAsFixed(0)} m";
         _walkingTime = "$walkMin 분";
@@ -130,59 +352,35 @@ class _MainMapPageState extends State<MainMapPage> {
     }
   }
 
-  // 3. 서버에서 셔틀 정보 가져오기 (실시간 시간 반영)
   Future<void> _fetchBusData() async {
     try {
-      final targetStation = _stationNames[_selectedStationIndex];
-      
-      // (나중에 실제 API 연결 시 주석 해제)
-      // final response = await DioClient.instance.get('/api/shuttle/main', queryParameters: {'destination': targetStation});
-      
-      // --- [스마트 시뮬레이션 로직] ---
       await Future.delayed(const Duration(milliseconds: 300));
       
-      // 1. 진짜 현재 시간 가져오기
       final DateTime now = DateTime.now();
-      
-      // 2. 다음 셔틀 시간 계산 (매 15분 간격 운행한다고 가정)
-      // 예: 10:05분이면 -> 10:15분 출발
       int nextMinute = (now.minute ~/ 15 + 1) * 15;
       DateTime nextDeparture = DateTime(now.year, now.month, now.day, now.hour, 0).add(Duration(minutes: nextMinute));
       
-      // 3. 남은 시간 계산
       int diffMinutes = nextDeparture.difference(now).inMinutes;
-      if (diffMinutes < 0) diffMinutes = 0; // 음수 방지
+      if (diffMinutes < 0) diffMinutes = 0;
 
-      // 4. 시간 포맷팅 (HH:mm)
       String formattedTime = "${nextDeparture.hour.toString().padLeft(2, '0')}:${nextDeparture.minute.toString().padLeft(2, '0')}";
       
-      // 5. 역별 시뮬레이션 (역마다 조금씩 다르게)
-      if (_selectedStationIndex == 1) { // 천안역 (+5분)
+      if (_selectedStationIndex == 1) { 
         nextDeparture = nextDeparture.add(const Duration(minutes: 5));
         diffMinutes += 5;
         formattedTime = "${nextDeparture.hour.toString().padLeft(2, '0')}:${nextDeparture.minute.toString().padLeft(2, '0')}";
       } 
-      // -----------------------------
-
-      // 마커 업데이트
-      final Set<NMarker> newMarkers = {
-        NMarker(id: 'stop', position: SCHOOL_SHUTTLE_STOP, caption: const NOverlayCaption(text: '탑승 장소')),
-      };
-
+      
       if (mounted) {
         setState(() {
-          _markers.clear();
-          _markers.addAll(newMarkers);
-          _nextDepartureTime = formattedTime; // 계산된 실제 시간 (예: 14:45)
-          _timeRemaining = "$diffMinutes분";   // 계산된 남은 시간 (예: 8분)
+          _nextDepartureTime = formattedTime;
+          _timeRemaining = "$diffMinutes분";
           _isLoading = false;
         });
       }
 
-      if (_mapController != null) {
-        await _mapController!.clearOverlays(type: NOverlayType.marker);
-        await _mapController!.addOverlayAll(_markers);
-        _updatePathToStop(); 
+      if (_mapController != null && _currentUserPosition != null) {
+        _updatePathToStop();
       }
 
     } catch (e) {
@@ -190,13 +388,14 @@ class _MainMapPageState extends State<MainMapPage> {
     }
   }
 
-  // 역 선택 버튼 클릭 시
   void _onStationSelected(int index) {
     setState(() {
       _selectedStationIndex = index;
-      _isLoading = true; // 로딩 표시
+      _isLoading = true;
+      // 새로운 역을 선택하면 '너무 멀다' 상태를 잠시 초기화하여 _updatePathToStop이 다시 실행되도록 유도
+      _isTooFar = false; 
     });
-    _fetchBusData(); // 선택된 역으로 데이터 다시 요청
+    _fetchBusData();
   }
 
   @override
@@ -204,40 +403,41 @@ class _MainMapPageState extends State<MainMapPage> {
     return Column(
       children: [
         _buildHeader(),
-        // ⭐️ [추가] 역 선택 버튼 리스트
         _buildStationSelector(),
-        
         Expanded(
           child: Stack(
             children: [
-              NaverMap(
-                options: const NaverMapViewOptions(
-                  initialCameraPosition: _initialCameraPosition,
-                  indoorEnable: false,
-                  locationButtonEnable: true,
-                  mapType: NMapType.basic,
-                  symbolScale: 0.8,
+              // ⭐️ 500m 이내일 때만 지도 표시
+              if (!_isTooFar) 
+                NaverMap(
+                  options: const NaverMapViewOptions(
+                    initialCameraPosition: _initialCameraPosition,
+                    indoorEnable: false,
+                    locationButtonEnable: true,
+                    mapType: NMapType.basic,
+                    symbolScale: 0.8,
+                  ),
+                  onMapReady: (controller) async {
+                    _mapController = controller;
+                    _fetchBusData();
+                  },
                 ),
-                onMapReady: (controller) async { // async 추가
-                  _mapController = controller;
-                  _fetchBusData(); 
-                  
-                  // ⭐️ [렌더링 강제] 마커 위치로 카메라를 한 번 더 이동시켜 렌더링을 강제합니다.
-                  await Future.delayed(const Duration(milliseconds: 300));
-                  final cameraUpdate = NCameraUpdate.scrollAndZoomTo(
-                    target: SCHOOL_SHUTTLE_STOP, 
-                    zoom: 16.0,
-                  );
-                  _mapController!.updateCamera(cameraUpdate);
-                },
-              ),
               
-              // 상단 정보 카드 (셔틀 출발 정보)
+              // ⭐️ 500m 초과일 때 경고 메시지 표시
+              if (_isTooFar)
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.all(32.0),
+                    child: Text(
+                      '선택하신 셔틀장 위치가 현재 위치에서 500m 밖에 있어\n경로 안내를 할 수 없습니다.',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.red[700]),
+                    ),
+                  ),
+                ),
+              
               Positioned(top: 16, right: 16, left: 16, child: _buildTopInfoCard()),
-              
-              // 하단 정보 카드 (도보 정보)
               Positioned(bottom: 20, left: 20, right: 20, child: _buildBottomInfoCard()),
-
               if (_isLoading) const Center(child: CircularProgressIndicator()),
             ],
           ),
@@ -245,7 +445,8 @@ class _MainMapPageState extends State<MainMapPage> {
       ],
     );
   }
-  
+
+  // --- UI 위젯 구현 ---
   Widget _buildHeader() {
     return SafeArea(
       bottom: false,
@@ -264,7 +465,6 @@ class _MainMapPageState extends State<MainMapPage> {
     );
   }
 
-  // ⭐️ [추가] 가로 스크롤 가능한 역 선택 버튼들
   Widget _buildStationSelector() {
     return SizedBox(
       height: 60,
@@ -285,8 +485,8 @@ class _MainMapPageState extends State<MainMapPage> {
                 ),
               ),
               selected: isSelected,
-              selectedColor: const Color(0xFF1565C0), // 선택된 색상 (파랑)
-              backgroundColor: Colors.grey[200],      // 기본 색상
+              selectedColor: const Color(0xFF1565C0),
+              backgroundColor: Colors.grey[200],
               onSelected: (_) => _onStationSelected(index),
             ),
           );
@@ -295,7 +495,6 @@ class _MainMapPageState extends State<MainMapPage> {
     );
   }
 
-  // 상단 카드: 선택한 역행 셔틀 정보 표시
   Widget _buildTopInfoCard() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
@@ -325,7 +524,6 @@ class _MainMapPageState extends State<MainMapPage> {
     );
   }
 
-  // 하단 카드: 승강장까지 도보 정보
   Widget _buildBottomInfoCard() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
@@ -334,7 +532,7 @@ class _MainMapPageState extends State<MainMapPage> {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text("승강장까지 거리", style: TextStyle(color: Colors.grey, fontSize: 12)),
+            Text(_isUserInsideSchool() ? "승강장까지 거리" : "셔틀장까지 거리", style: const TextStyle(color: Colors.grey, fontSize: 12)),
             const SizedBox(height: 4),
             Text(_walkingDistance, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18, color: Color(0xFF1565C0))),
           ]),

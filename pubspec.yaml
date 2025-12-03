@@ -47,6 +47,7 @@ flutter:
   assets:
     - assets/icons/
     - assets/stops/
+  
 
   # Fonts 섹션 (NotoSansKR 폰트 등록)
 
