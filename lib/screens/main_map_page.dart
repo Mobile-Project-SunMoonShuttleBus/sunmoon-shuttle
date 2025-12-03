@@ -19,16 +19,16 @@ class _MainMapPageState extends State<MainMapPage> {
   StreamSubscription<Position>? _positionStreamSubscription;
   NLatLng? _currentUserPosition; 
   
-  // ⭐️ [중요] 셔틀 승강장 위치 (사용자가 걸어갈 목적지)
-  // 예시: 학교 본관 앞 승강장 좌표 (실제 좌표로 수정 필요)
-  static const NLatLng SCHOOL_SHUTTLE_STOP = NLatLng(36.7989, 127.0747); 
+  // ⭐️ [수정 완료] 선문대 공학관 셔틀 정류장 위치 좌표를 반영합니다.
+  // ⭐️ [최종 수정 완료] 메인 셔틀 정류장의 가장 안정적인 좌표를 반영합니다.
+  static const NLatLng SCHOOL_SHUTTLE_STOP = NLatLng(36.790500, 127.002500); 
 
   final Set<NMarker> _markers = {}; 
 
-  // [Method 2] 승강장까지의 도로 경로 노드 (예시)
+  // [Method 2] 승강장까지의 도로 경로 노드 (새 좌표에 맞게 임시 경로 조정)
   static const List<NLatLng> ROUTE_TO_STOP = [
-    NLatLng(36.7995, 127.0750), 
-    NLatLng(36.7992, 127.0748), 
+    NLatLng(36.790600, 127.002600), 
+    NLatLng(36.790550, 127.002550), 
   ];
 
   // ⭐️ [UI 상태] 선택된 목적지 역 (기본값: 아산역)
@@ -114,9 +114,10 @@ class _MainMapPageState extends State<MainMapPage> {
 
     // B. 경로선 그리기
     try { 
-      _mapController!.deleteOverlay(NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'path_to_stop'));
+      _mapController!.deleteOverlay(const NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'path_to_stop'));
     } catch (e) {}
 
+    // 임시 경로를 새로운 좌표에 맞게 조정 (임시)
     List<NLatLng> coords = [_currentUserPosition!, ...ROUTE_TO_STOP, SCHOOL_SHUTTLE_STOP];
     final path = NPolylineOverlay(id: 'path_to_stop', coords: coords, color: Colors.blueAccent, width: 6);
     try { _mapController!.addOverlay(path); } catch (e) {}
@@ -165,7 +166,7 @@ class _MainMapPageState extends State<MainMapPage> {
 
       // 마커 업데이트
       final Set<NMarker> newMarkers = {
-        NMarker(id: 'stop', position: SCHOOL_SHUTTLE_STOP, caption: NOverlayCaption(text: '탑승 장소')),
+        NMarker(id: 'stop', position: SCHOOL_SHUTTLE_STOP, caption: const NOverlayCaption(text: '탑승 장소')),
       };
 
       if (mounted) {
@@ -217,9 +218,17 @@ class _MainMapPageState extends State<MainMapPage> {
                   mapType: NMapType.basic,
                   symbolScale: 0.8,
                 ),
-                onMapReady: (controller) {
+                onMapReady: (controller) async { // async 추가
                   _mapController = controller;
                   _fetchBusData(); 
+                  
+                  // ⭐️ [렌더링 강제] 마커 위치로 카메라를 한 번 더 이동시켜 렌더링을 강제합니다.
+                  await Future.delayed(const Duration(milliseconds: 300));
+                  final cameraUpdate = NCameraUpdate.scrollAndZoomTo(
+                    target: SCHOOL_SHUTTLE_STOP, 
+                    zoom: 16.0,
+                  );
+                  _mapController!.updateCamera(cameraUpdate);
                 },
               ),
               
