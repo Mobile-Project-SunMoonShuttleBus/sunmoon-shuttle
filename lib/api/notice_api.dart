@@ -113,23 +113,18 @@ class NoticeApi {
         throw Exception('셔틀 공지 리스트 조회 실패: ${resp.statusCode}');
       }
 
-      if (kDebugMode) {
-        print('✅ 셔틀 공지 리스트 응답 데이터 타입: ${resp.data.runtimeType}');
-        print('셔틀 공지 리스트 응답 데이터: ${resp.data}');
-      }
-
       // API 스펙에 따르면 응답은 바로 배열 형태: [{ "_id": "...", "title": "...", "postedAt": "..." }]
       if (resp.data is! List) {
-        if (kDebugMode) {
-          print('⚠️ 응답이 리스트가 아닙니다. 응답 타입: ${resp.data.runtimeType}');
-        }
         throw Exception('셔틀 공지 리스트 조회 실패: 응답 형식이 올바르지 않습니다. 배열이 아닙니다.');
       }
 
       final List<dynamic> jsonList = resp.data as List<dynamic>;
-      
+
       if (kDebugMode) {
-        print('셔틀 공지 리스트 파싱: ${jsonList.length}개 항목');
+        print('✅ 셔틀 공지 리스트 응답: ${jsonList.length}개 항목');
+        if (jsonList.isNotEmpty) {
+          print('첫 번째 항목 샘플: ${jsonList[0]}');
+        }
       }
 
       // 각 항목을 ShuttleNoticeSummary로 변환
@@ -151,7 +146,7 @@ class NoticeApi {
           .toList();
 
       if (kDebugMode) {
-        print('✅ 셔틀 공지 리스트 파싱 완료: ${notices.length}개');
+        print('✅ 셔틀 공지 파싱 완료: ${notices.length}개');
       }
 
       return notices;
@@ -203,17 +198,8 @@ class NoticeApi {
         throw Exception('셔틀 공지 상세 조회 실패: ${resp.statusCode} / ${resp.data}');
       }
 
-      if (kDebugMode) {
-        print('✅ 셔틀 공지 상세 응답 데이터 타입: ${resp.data.runtimeType}');
-      }
-
       // 응답이 JSON인지 확인
       if (resp.data is String) {
-        if (kDebugMode) {
-          print('⚠️ 응답이 JSON이 아닙니다. 응답 타입: ${resp.data.runtimeType}');
-          final preview = resp.data.toString().substring(0, resp.data.toString().length > 200 ? 200 : resp.data.toString().length);
-          print('⚠️ 응답 미리보기: $preview...');
-        }
         throw Exception('서버가 JSON 대신 다른 형식을 반환했습니다.');
       }
 
@@ -225,29 +211,8 @@ class NoticeApi {
         throw Exception('예상치 못한 응답 형식입니다. Map이 아닙니다.');
       }
 
-      if (kDebugMode) {
-        print('셔틀 공지 상세 파싱 시작');
-        print('  - ID: ${jsonMap['_id']}');
-        print('  - 포털 공지 ID: ${jsonMap['portalNoticeId']}');
-        print('  - 제목: ${jsonMap['title']}');
-        print('  - 요약 존재 여부: ${jsonMap.containsKey('summary') && jsonMap['summary'] != null && (jsonMap['summary'] as String).isNotEmpty}');
-        if (jsonMap.containsKey('summary')) {
-          final summary = jsonMap['summary'];
-          if (summary != null && summary.toString().trim().isNotEmpty) {
-            print('  - 요약 길이: ${summary.toString().length}자');
-            print('  - 요약 미리보기: ${summary.toString().substring(0, summary.toString().length > 100 ? 100 : summary.toString().length)}...');
-          } else {
-            print('  - 요약: 없음 (빈 문자열 또는 null)');
-          }
-        }
-      }
-
       try {
         final notice = ShuttleNoticeDetail.fromJson(jsonMap);
-        if (kDebugMode) {
-          print('✅ 셔틀 공지 상세 파싱 완료');
-          print('  - 요약 표시 여부: ${notice.hasSummary}');
-        }
         return notice;
       } catch (e) {
         if (kDebugMode) {
@@ -292,9 +257,9 @@ class NoticeApi {
     // (타임아웃 없이 작동하도록 충분히 긴 시간 설정)
     final syncDio = Dio(BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(hours: 1), // 연결 타임아웃 (1시간)
-      sendTimeout: const Duration(hours: 1), // 요청 전송 타임아웃 (1시간)
-      receiveTimeout: const Duration(hours: 1), // 응답 대기 타임아웃 (1시간 - LLM 처리 시간 고려)
+      connectTimeout: const Duration(minutes: 10), // 연결 타임아웃 (10분)
+      sendTimeout: const Duration(minutes: 10), // 요청 전송 타임아웃 (10분)
+      receiveTimeout: const Duration(minutes: 10), // 응답 대기 타임아웃 (10분 - LLM 처리 시간 고려)
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
@@ -311,26 +276,29 @@ class NoticeApi {
     final opts = Options();
     AuthService.I.attachAuthHeader(opts);
 
-    if (kDebugMode) {
-      print('셔틀 공지 동기화 요청: POST /api/notices/shuttle/sync');
-      print('동기화 타임아웃: 연결 1시간, 전송 1시간, 응답 대기 1시간 (LLM 처리 시간 고려)');
-    }
-
     try {
       final resp = await syncDio.post(
         '/api/notices/shuttle/sync',
         options: opts,
       );
 
-      // 200 응답 처리: { "message": "셔틀 공지 동기화 완료" }
+      // 200 응답 처리: { "message": "셔틀 공지 동기화 완료", "processed": 10, "shuttleRelated": 0, "errors": 0, "llmFailures": 0 }
       if (resp.statusCode == 200) {
-        if (kDebugMode) {
-          print('✅ 셔틀 공지 동기화 성공: ${resp.data}');
-        }
 
         // 응답이 Map인 경우
         if (resp.data is Map<String, dynamic>) {
           final responseMap = resp.data as Map<String, dynamic>;
+          
+          // 디버그 로그: 동기화 상세 정보 출력
+          if (kDebugMode) {
+            print('✅ 셔틀 공지 동기화 응답:');
+            print('  - message: ${responseMap['message']}');
+            print('  - processed: ${responseMap['processed']}');
+            print('  - shuttleRelated: ${responseMap['shuttleRelated']}');
+            print('  - errors: ${responseMap['errors']}');
+            print('  - llmFailures: ${responseMap['llmFailures']}');
+          }
+          
           // message 필드가 있는지 확인
           if (responseMap.containsKey('message')) {
             return responseMap;

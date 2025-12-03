@@ -95,7 +95,6 @@ class CongestionService {
       _pendingReports.clear();
 
       if (kDebugMode) {
-        print('🔵 혼잡도 자동 위치 추적 시작');
       }
 
       // 위치 스트림 구독
@@ -135,10 +134,6 @@ class CongestionService {
     _stationaryCount = 0;
     _lastReportTime = null;
     _pendingReports.clear();
-
-    if (kDebugMode) {
-      print('🔵 혼잡도 위치 추적 중지');
-    }
   }
 
   /// 위치 업데이트 처리 (자동 감지)
@@ -325,10 +320,6 @@ class CongestionService {
       );
 
       await CongestionApi.I.reportCongestion(request);
-
-      if (kDebugMode) {
-        print('✅ 혼잡도 리포트 전송 완료: $index');
-      }
     } catch (e) {
       if (kDebugMode) {
         print('❌ 혼잡도 리포트 전송 실패: $e');
@@ -381,10 +372,6 @@ class CongestionService {
         
         // 성공 시 큐에서 제거
         _pendingReports.remove(report);
-        
-        if (kDebugMode) {
-          print('✅ 리포트 재시도 성공: ${report.retryCount + 1}회 시도');
-        }
       } catch (e) {
         // 실패 시 재시도 카운트 증가
         report.retryCount++;

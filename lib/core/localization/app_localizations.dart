@@ -57,4 +57,35 @@ class AppLocalizations {
   String get portalPasswordHint => isKorean ? '비밀번호를 입력하세요' : 'Enter Password';
   String get portalPasswordRequired => isKorean ? '비밀번호를 입력해주세요.' : 'Password is required.';
   String get portalAccountSaved => isKorean ? '포털 계정이 저장되었습니다.' : 'Portal account saved.';
+  
+  // --- 학기 시간표 (Timetable) ---
+  String get timetableTitle => isKorean ? '학기 시간표' : 'School Timetable';
+  String get fetchingTimetable => isKorean ? '시간표를 가져오는 중입니다. 잠시만 기다려주세요...' : 'Fetching timetable. Please wait...';
+  String get timetableFetchFailed => isKorean ? '시간표 데이터를 가져오지 못했습니다. 잠시 후 다시 시도해주세요.' : 'Failed to fetch timetable data. Please try again later.';
+  String get timetableFetchTimeout => isKorean ? '시간표를 가져오는데 시간이 오래 걸리고 있습니다. 잠시 후 새로고침을 해주세요.' : 'Timetable fetching is taking too long. Please refresh later.';
+  String get noTimetableData => isKorean ? '시간표 데이터가 없습니다. 포털 연동을 해주세요.' : 'No timetable data. Please link your portal account.';
+  String get timetableLoadFailed => isKorean ? '시간표를 불러오는데 실패했습니다' : 'Failed to load timetable';
+  String get portalLoginSuccess => isKorean ? '포털 로그인 성공! 계정 정보를 저장해주세요.' : 'Portal login successful! Please save your account information.';
+  String get accountSavedFetching => isKorean ? '서버에 저장되었습니다. 시간표를 가져옵니다.' : 'Saved to server. Fetching timetable.';
+  String get saveFailed => isKorean ? '저장 실패' : 'Save failed';
+  String get portalAccountSave => isKorean ? '포털 계정 저장' : 'Save Portal Account';
+  String get portalAccountSaveDescription => isKorean ? '학번과 비밀번호를 입력하면\n자동으로 시간표를 가져옵니다.' : 'Enter your student ID and password\nto automatically fetch your timetable.';
+  String get refresh => isKorean ? '새로고침' : 'Refresh';
+  String get portalLink => isKorean ? '포털 연동' : 'Link Portal';
+  String get updating => isKorean ? '업데이트' : 'Updating';
+  String get crawling => isKorean ? '크롤링 중...' : 'Crawling...';
+  String get noData => isKorean ? '데이터 없음' : 'No Data';
+  String get loading => isKorean ? '로딩 중...' : 'Loading...';
+  String get subjectsCount => isKorean ? '과목' : 'Subjects';
+  String get fetchingTimetableMessage => isKorean ? '시간표를 가져오는 중입니다' : 'Fetching timetable';
+  
+  // 요일 (Days)
+  String get monday => isKorean ? '월' : 'Mon';
+  String get tuesday => isKorean ? '화' : 'Tue';
+  String get wednesday => isKorean ? '수' : 'Wed';
+  String get thursday => isKorean ? '목' : 'Thu';
+  String get friday => isKorean ? '금' : 'Fri';
+  
+  // 빈 상태 메시지
+  String get noTimetableMessage => isKorean ? '시간표가 없습니다.\n포털 연동을 해주세요.' : 'No timetable.\nPlease link your portal account.';
 }
