@@ -17,8 +17,8 @@ class _MainMapPageState extends State<MainMapPage> {
   
   // ⭐️ [Mocking Logic] 테스트 시 true, 실제 사용 시 false
   static const bool IS_MOCKING_LOCATION = true; 
-  // ⭐️ [Mocking Point] 사용자 요청에 따라 아산역 근처 좌표로 업데이트 (36.809245, 127.143216)
-  static const NLatLng MOCK_START_POINT = NLatLng(36.808163, 127.143141); 
+  // ⭐️ [Mocking Point] 아산역 근처 좌표로 설정 (학교 외부)
+  static const NLatLng MOCK_START_POINT = NLatLng(36.809245, 127.143216); 
 
   // 위치 및 경로 관련
   StreamSubscription<Position>? _positionStreamSubscription;
@@ -28,7 +28,7 @@ class _MainMapPageState extends State<MainMapPage> {
   static const NLatLng SCHOOL_SHUTTLE_STOP = NLatLng(36.8003353, 127.0713667); 
   // 학교 내부/외부 판단을 위한 거리 기준 (미터)
   static const double SCHOOL_BOUNDARY_RADIUS_M = 600.0; 
-  // ⭐️ 외부 셔틀장 경로 안내 최대 거리 (미터)
+  // 외부 셔틀장 경로 안내 최대 거리 (미터)
   static const double MAX_WALKING_DISTANCE_M = 500.0; 
   
   // [경로 노드] 순서 상관없이 경로를 구성하는 지점들 (학교 내부 도보 경로에만 사용됨)
@@ -61,7 +61,7 @@ class _MainMapPageState extends State<MainMapPage> {
   String _walkingDistance = "- m"; 
   String _walkingTime = "- 분"; 
   
-  // ⭐️ [추가] 선택된 목적지가 500m 밖에 있는지 여부
+  // 선택된 목적지가 500m 밖에 있는지 여부
   bool _isTooFar = false; 
 
   static const double _WALKING_SPEED = 80; // 분당 80m
@@ -185,7 +185,7 @@ class _MainMapPageState extends State<MainMapPage> {
     bool insideSchool = _isUserInsideSchool();
     
     if (insideSchool) {
-      // MODE 1: 학교 내부 경로 안내 (Nearest Neighbor Pathfinding)
+      // MODE 1: 학교 내부 경로 안내 
       
       // 학교 내부일 경우 '너무 멀다' 상태 초기화
       if (_isTooFar) {
@@ -195,10 +195,8 @@ class _MainMapPageState extends State<MainMapPage> {
       finalDestination = SCHOOL_SHUTTLE_STOP;
       
       int entryIndex = _findBestEntryNode(_currentUserPosition!);
-      
-      Set<int> visitedIndices = {}; 
-      pathCoords.add(_currentUserPosition!); 
-      NLatLng lastAddedPoint = _currentUserPosition!; 
+      // ... (Nearest Neighbor Logic continues)
+      // (내부 경로 탐색 로직은 생략하고 바로 finalDestination으로 연결)
 
       if (entryIndex != -1) {
           if (_calculateDistance(_currentUserPosition!, finalDestination) < _calculateDistance(_currentUserPosition!, ROUTE_TO_STOP[entryIndex])) {
@@ -206,11 +204,11 @@ class _MainMapPageState extends State<MainMapPage> {
               gotoDrawPath(pathCoords, finalDestination);
               return;
           }
-          // ... (Nearest Neighbor Logic continues)
+
           NLatLng entryNode = ROUTE_TO_STOP[entryIndex];
           pathCoords.add(entryNode);
-          lastAddedPoint = entryNode;
-          visitedIndices.add(entryIndex);
+          NLatLng lastAddedPoint = entryNode;
+          Set<int> visitedIndices = {entryIndex};
           
           while (visitedIndices.length < ROUTE_TO_STOP.length) {
               int nextNodeIndex = -1;
@@ -242,13 +240,14 @@ class _MainMapPageState extends State<MainMapPage> {
               }
           }
       }
+      pathCoords.insert(0, _currentUserPosition!);
       
     } else {
-      // MODE 2: 학교 외부 경로 안내 (거리 체크 로직 추가)
+      // MODE 2: 학교 외부 경로 안내 (거리 체크 로직 포함)
       
       finalDestination = EXTERNAL_STOPS[_selectedStationIndex];
       
-      // ⭐️ 핵심: 500m 거리 체크
+      // 500m 거리 체크
       double distanceToStop = _calculateDistance(_currentUserPosition!, finalDestination);
       
       if (distanceToStop > MAX_WALKING_DISTANCE_M) {
@@ -256,7 +255,7 @@ class _MainMapPageState extends State<MainMapPage> {
         if (!_isTooFar) {
           setState(() {
              _isTooFar = true;
-             // UI 클리어
+             // 지도 오버레이 클리어
              _mapController!.deleteOverlay(const NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'path_to_stop'));
              _mapController!.clearOverlays(type: NOverlayType.marker);
              _walkingDistance = "- m"; 
@@ -392,9 +391,20 @@ class _MainMapPageState extends State<MainMapPage> {
     setState(() {
       _selectedStationIndex = index;
       _isLoading = true;
-      // 새로운 역을 선택하면 '너무 멀다' 상태를 잠시 초기화하여 _updatePathToStop이 다시 실행되도록 유도
       _isTooFar = false; 
     });
+    
+    // ⭐️ [변경] 사용자가 학교 밖에 있을 때, 선택된 셔틀장으로 카메라 이동
+    if (_mapController != null && _currentUserPosition != null && !_isUserInsideSchool()) {
+        final newTargetStop = EXTERNAL_STOPS[index];
+        _mapController!.updateCamera(
+            NCameraUpdate.scrollAndZoomTo(
+                target: newTargetStop,
+                zoom: 15.5,
+            )
+        );
+    }
+    
     _fetchBusData();
   }
 
@@ -407,7 +417,7 @@ class _MainMapPageState extends State<MainMapPage> {
         Expanded(
           child: Stack(
             children: [
-              // ⭐️ 500m 이내일 때만 지도 표시
+              // 500m 이내일 때만 지도 표시
               if (!_isTooFar) 
                 NaverMap(
                   options: const NaverMapViewOptions(
@@ -419,11 +429,23 @@ class _MainMapPageState extends State<MainMapPage> {
                   ),
                   onMapReady: (controller) async {
                     _mapController = controller;
+                    
+                    // ⭐️ [변경] 사용자가 학교 밖에 있고, 현재 위치가 설정되었다면 선택된 셔틀장으로 카메라 이동
+                    if (_currentUserPosition != null && !_isUserInsideSchool()) {
+                        final targetStop = EXTERNAL_STOPS[_selectedStationIndex];
+                        controller.updateCamera(
+                            NCameraUpdate.scrollAndZoomTo(
+                                target: targetStop,
+                                zoom: 15.5, 
+                            )
+                        );
+                    }
+                    
                     _fetchBusData();
                   },
                 ),
               
-              // ⭐️ 500m 초과일 때 경고 메시지 표시
+              // 500m 초과일 때 경고 메시지 표시
               if (_isTooFar)
                 Center(
                   child: Padding(
