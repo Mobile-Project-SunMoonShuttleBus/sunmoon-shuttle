@@ -17,6 +17,7 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
   late Future<List<ShuttleNoticeSummary>> _future;
   bool _isReloading = false;
   bool _isSyncing = false;
+  int _refreshKey = 0; // FutureBuilder 강제 재빌드용
 
   @override
   void initState() {
@@ -30,13 +31,15 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
 
     setState(() {
       _isReloading = true;
+      // FutureBuilder가 새로운 future를 감지하도록 강제로 재설정
       _future = _api.fetchShuttleNotices();
+      _refreshKey++; // FutureBuilder 강제 재빌드
     });
 
     try {
-      await _future;
+      final notices = await _future;
       if (kDebugMode) {
-        print('✅ 셔틀 공지 리스트 새로고침 완료');
+        print('✅ 새로고침 완료: ${notices.length}개 공지');
       }
     } catch (e) {
       if (kDebugMode) {
@@ -59,16 +62,47 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
     });
 
     try {
-      await _api.syncShuttleNotices();
+      final response = await _api.syncShuttleNotices();
       if (mounted) {
+        // 동기화 응답에서 상세 정보 추출
+        String message = '셔틀 공지 동기화가 완료되었습니다.';
+        int llmFailuresCount = 0;
+        
+        if (response is Map<String, dynamic>) {
+          final processed = response['processed'] ?? 0;
+          final shuttleRelated = response['shuttleRelated'] ?? 0;
+          final errors = response['errors'] ?? 0;
+          llmFailuresCount = response['llmFailures'] ?? 0;
+          
+          // 상세 정보가 있으면 메시지에 포함
+          if (processed > 0 || shuttleRelated > 0 || errors > 0 || llmFailuresCount > 0) {
+            message = '동기화 완료: 처리 ${processed}개, 셔틀 관련 ${shuttleRelated}개';
+            if (errors > 0) {
+              message += ', 오류 ${errors}개';
+            }
+            if (llmFailuresCount > 0) {
+              message += '\n⚠️ LLM 연결 실패 ${llmFailuresCount}건 (Ollama 서버 확인 필요)';
+            }
+            if (shuttleRelated == 0 && processed > 0) {
+              message += '\n💡 셔틀 관련 공지가 없거나 LLM이 모두 NO로 판별했습니다.';
+            }
+          }
+        }
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('셔틀 공지 동기화가 완료되었습니다.'),
-            duration: Duration(seconds: 2),
+          SnackBar(
+            content: Text(message),
+            duration: Duration(seconds: llmFailuresCount > 0 ? 5 : 3),
+            backgroundColor: llmFailuresCount > 0 ? Colors.orange : Colors.green,
           ),
         );
-        // 동기화 완료 후 리스트 새로고침
-        _reload();
+        // 동기화 완료 후 잠시 대기 후 리스트 새로고침 (서버에서 데이터 준비 시간 고려)
+        await Future.delayed(const Duration(milliseconds: 500));
+        if (mounted) {
+          // FutureBuilder가 새로운 future를 감지하도록 강제로 재설정
+          setState(() {
+            _future = _api.fetchShuttleNotices();
+          });
+        }
       }
     } catch (e) {
       if (mounted) {
@@ -147,6 +181,7 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
         onRefresh: _reload,
         child: FutureBuilder<List<ShuttleNoticeSummary>>(
           future: _future,
+          key: ValueKey(_refreshKey), // future가 변경될 때마다 FutureBuilder 재빌드
           builder: (context, snapshot) {
             if (snapshot.connectionState == ConnectionState.waiting) {
               return const Center(child: CircularProgressIndicator());
@@ -191,10 +226,6 @@ class _ShuttleNoticeListScreenState extends State<ShuttleNoticeListScreen> {
             }
 
             final notices = snapshot.data ?? [];
-
-            if (kDebugMode) {
-              print('🔵 셔틀 공지 리스트: ${notices.length}개');
-            }
 
             if (notices.isEmpty) {
               return ListView(

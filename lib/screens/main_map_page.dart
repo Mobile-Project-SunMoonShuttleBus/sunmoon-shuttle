@@ -1,8 +1,14 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 import '../api/dio_client.dart';
+import '../api/notice_api.dart';
+import '../models/shuttle_notice_models.dart';
+import 'notice/shuttle_notice_list_screen.dart'; // 셔틀 공지 화면
+import 'notice/shuttle_notice_detail_screen.dart'; // 셔틀 공지 상세 화면
+import 'notice/bus_notices_screen.dart'; // 셔틀버스 공지 화면 (새로 추가)
 
 class MainMapPage extends StatefulWidget {
   const MainMapPage({super.key});
@@ -45,6 +51,11 @@ class _MainMapPageState extends State<MainMapPage> {
 
   static const double _WALKING_SPEED = 80; // 분당 80m
 
+  // 셔틀 공지 관련
+  final NoticeApi _noticeApi = NoticeApi.I;
+  ShuttleNoticeSummary? _latestNotice;
+  bool _isLoadingNotice = false;
+
   // 초기 카메라 (학교 승강장 근처)
   static const NCameraPosition _initialCameraPosition = NCameraPosition(
     target: SCHOOL_SHUTTLE_STOP,
@@ -59,6 +70,43 @@ class _MainMapPageState extends State<MainMapPage> {
     // 초기 데이터 로드 및 타이머 시작 (15초마다 갱신)
     _fetchBusData();
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _fetchBusData());
+    
+    // 최신 셔틀 공지 로드
+    _loadLatestNotice();
+  }
+
+  // 최신 셔틀 공지 1개 로드
+  Future<void> _loadLatestNotice() async {
+    if (_isLoadingNotice) return;
+    
+    setState(() {
+      _isLoadingNotice = true;
+    });
+
+    try {
+      final notices = await _noticeApi.fetchShuttleNotices();
+      if (mounted && notices.isNotEmpty) {
+        setState(() {
+          _latestNotice = notices.first; // 최신 공지 (첫 번째)
+          _isLoadingNotice = false;
+        });
+      } else {
+        setState(() {
+          _latestNotice = null;
+          _isLoadingNotice = false;
+        });
+      }
+    } catch (e) {
+      if (kDebugMode) {
+        print('최신 공지 로드 실패: $e');
+      }
+      if (mounted) {
+        setState(() {
+          _latestNotice = null;
+          _isLoadingNotice = false;
+        });
+      }
+    }
   }
 
   @override
@@ -226,6 +274,15 @@ class _MainMapPageState extends State<MainMapPage> {
               // 상단 정보 카드 (셔틀 출발 정보)
               Positioned(top: 16, right: 16, left: 16, child: _buildTopInfoCard()),
               
+              // 최신 공지 카드 (상단 정보 카드 아래)
+              if (_latestNotice != null)
+                Positioned(
+                  top: 90,
+                  right: 16,
+                  left: 16,
+                  child: _buildNoticeCard(),
+                ),
+              
               // 하단 정보 카드 (도보 정보)
               Positioned(bottom: 20, left: 20, right: 20, child: _buildBottomInfoCard()),
 
@@ -248,7 +305,18 @@ class _MainMapPageState extends State<MainMapPage> {
             const SizedBox(width: 10),
             const Text('등하교 셔틀', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const Spacer(),
-            const Icon(Icons.notifications_none, size: 28, color: Colors.grey),
+            IconButton(
+              icon: const Icon(Icons.announcement, size: 28, color: Colors.grey),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => const BusNoticesScreen(),
+                  ),
+                );
+              },
+              tooltip: '셔틀 공지',
+            ),
           ],
         ),
       ),
@@ -312,6 +380,72 @@ class _MainMapPageState extends State<MainMapPage> {
             child: Text('$_timeRemaining 남음', style: const TextStyle(color: Color(0xFF1565C0), fontWeight: FontWeight.bold)),
           ),
         ],
+      ),
+    );
+  }
+
+  // 최신 공지 카드
+  Widget _buildNoticeCard() {
+    if (_latestNotice == null) return const SizedBox.shrink();
+
+    return GestureDetector(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => ShuttleNoticeDetailScreen(
+              noticeId: _latestNotice!.id,
+              initialTitle: _latestNotice!.title,
+            ),
+          ),
+        );
+      },
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+        decoration: BoxDecoration(
+          color: Colors.orange[50],
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: Colors.orange[200]!, width: 1),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.05),
+              blurRadius: 4,
+              offset: const Offset(0, 2),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Icon(Icons.announcement, color: Colors.orange[700], size: 20),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    _latestNotice!.title,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                      color: Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    _latestNotice!.formattedDate,
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: Colors.grey[600],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
+          ],
+        ),
       ),
     );
   }

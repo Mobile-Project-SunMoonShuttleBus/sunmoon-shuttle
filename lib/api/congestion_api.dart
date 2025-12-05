@@ -50,10 +50,6 @@ class CongestionApi {
         data: request.toJson(),
       );
 
-      if (kDebugMode) {
-        print('✅ 혼잡도 리포트 전송 성공: ${resp.data}');
-      }
-
       return CongestionReportResponse.fromJson(resp.data);
     } on DioException catch (e) {
       if (kDebugMode) {

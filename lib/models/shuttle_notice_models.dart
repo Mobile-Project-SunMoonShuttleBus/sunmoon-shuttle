@@ -5,11 +5,13 @@ class ShuttleNoticeSummary {
   final String id;
   final String title;
   final DateTime postedAt;
+  final String? url; // 포털 원문 URL (선택적)
 
   ShuttleNoticeSummary({
     required this.id,
     required this.title,
     required this.postedAt,
+    this.url,
   });
 
   factory ShuttleNoticeSummary.fromJson(Map<String, dynamic> json) {
@@ -29,10 +31,14 @@ class ShuttleNoticeSummary {
         throw FormatException('공지 게시일이 없습니다. JSON: $json');
       }
 
+      // url은 선택적 필드
+      final url = json['url'] as String?;
+
       return ShuttleNoticeSummary(
         id: id,
         title: title,
         postedAt: DateTime.parse(postedAtStr),
+        url: url,
       );
     } catch (e) {
       throw FormatException('ShuttleNoticeSummary 파싱 실패: $e, JSON: $json');

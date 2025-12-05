@@ -1,8 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kDebugMode;
+import 'package:provider/provider.dart';
 import 'package:dio/dio.dart';
 import '../api/timetable_api.dart';
 import '../models/timetable_models.dart';
 import '../repositories/auth_repository.dart';
+import '../providers/settings_provider.dart';
+import '../core/localization/app_localizations.dart';
 import 'portal_timetable_webview.dart';
 
 /// 학기 시간표 화면 (1번 코드 원본 UI/기능)
@@ -28,6 +32,7 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
   final Map<String, Color> _subjectColorMap = {};
 
   // 시간표 그리드 설정 (9시 ~ 19시)
+  // 서버 데이터는 한국어 요일 키를 사용하므로 한국어 유지
   static const List<String> _orderedDays = ['월', '화', '수', '목', '금'];
   static const double _columnWidth = 65.0; // 칸 너비 조정
   static const double _cellHeight = 60.0;
@@ -46,12 +51,110 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
     setState(() => _isLoadingTimetable = true);
 
     try {
+      if (kDebugMode) {
+        print('📋 시간표 조회 시작...');
+      }
+
       var response = await TimetableApi.I.getTimetable();
 
-      // 크롤링 대기 로직 (1번 코드 기능)
+      if (kDebugMode) {
+        // 월~금만 필터링 (토, 일 제외)
+        final weekdayKeys = response.timetable.keys
+            .where((day) => _orderedDays.contains(day))
+            .toList();
+        final weekdayCount = _orderedDays.fold<int>(
+            0, (sum, day) => sum + (response.timetable[day]?.length ?? 0));
+        
+        print('📋 시간표 응답 받음:');
+        print('  - success: ${response.success}');
+        print('  - count: ${response.count} (전체) / $weekdayCount (월~금)');
+        print('  - crawlingStatus: ${response.crawlingStatus}');
+        print('  - timetable keys: $weekdayKeys (월~금만)');
+      }
+
+      // 크롤링 대기가 필요하고 아직 완료되지 않은 경우
+      // 하지만 데이터가 이미 있으면 (count > 0) 바로 표시
       if (waitForCrawling && response.crawlingStatus != 'completed') {
-        final completed = await _waitForCrawlingComplete(response);
-        if (completed != null) response = completed;
+        // 월~금 중 하나라도 데이터가 있으면 바로 표시
+        final hasExistingData = _orderedDays.any((day) => 
+          response.timetable[day] != null && response.timetable[day]!.isNotEmpty
+        );
+        
+        if (hasExistingData || response.count > 0) {
+          if (kDebugMode) {
+            print('📋 데이터가 이미 있음 (count: ${response.count}), 바로 표시');
+          }
+        } else {
+          // 데이터가 없으면 크롤링 완료 대기
+          if (kDebugMode) {
+            print('📋 크롤링 완료 대기 중...');
+          }
+          
+          // 사용자에게 크롤링 중임을 알림
+          if (mounted) {
+            final settings = Provider.of<SettingsProvider>(context, listen: false);
+            final l10n = AppLocalizations(settings.isKorean);
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(l10n.fetchingTimetable),
+                duration: const Duration(seconds: 5),
+                backgroundColor: Colors.blue,
+              ),
+            );
+          }
+          
+          final completed = await _waitForCrawlingComplete(response);
+          if (completed != null) {
+            response = completed;
+            
+            // 크롤링 완료 후 데이터 확인
+            final hasDataAfterWait = _orderedDays.any((day) => 
+              response.timetable[day] != null && response.timetable[day]!.isNotEmpty
+            );
+            
+            if (kDebugMode) {
+              print('📋 크롤링 완료, 데이터 받음 (count: ${response.count}, hasData: $hasDataAfterWait)');
+            }
+            
+            if (!hasDataAfterWait && response.count == 0) {
+              // 크롤링이 완료되었지만 데이터가 없는 경우
+              if (mounted) {
+                final settings = Provider.of<SettingsProvider>(context, listen: false);
+                final l10n = AppLocalizations(settings.isKorean);
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(
+                    content: Text(l10n.timetableFetchFailed),
+                    duration: const Duration(seconds: 4),
+                    backgroundColor: Colors.orange,
+                  ),
+                );
+              }
+            }
+          } else {
+            // 대기 시간 초과 시 최신 데이터 다시 가져오기
+            if (kDebugMode) {
+              print('📋 크롤링 대기 시간 초과, 최신 데이터 다시 조회');
+            }
+            response = await TimetableApi.I.getTimetable();
+            
+            // 여전히 데이터가 없으면 알림
+            final stillNoData = !_orderedDays.any((day) => 
+              response.timetable[day] != null && response.timetable[day]!.isNotEmpty
+            ) && response.count == 0;
+            
+            if (stillNoData && mounted) {
+              final settings = Provider.of<SettingsProvider>(context, listen: false);
+              final l10n = AppLocalizations(settings.isKorean);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(l10n.timetableFetchTimeout),
+                  duration: const Duration(seconds: 5),
+                  backgroundColor: Colors.orange,
+                ),
+              );
+            }
+          }
+        }
       }
 
       _assignColors(response); // 과목 색상 할당
@@ -61,11 +164,89 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
           _timetableData = response;
           _isLoadingTimetable = false;
         });
+
+        // 크롤링 상태에 따른 사용자 알림
+        if (mounted) {
+          final settings = Provider.of<SettingsProvider>(context, listen: false);
+          final l10n = AppLocalizations(settings.isKorean);
+          
+          if (response.crawlingStatus == 'crawling' && response.count == 0) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(l10n.fetchingTimetable),
+                duration: const Duration(seconds: 3),
+                backgroundColor: Colors.blue,
+              ),
+            );
+          } else if (response.count == 0 && response.crawlingStatus == 'completed') {
+            if (kDebugMode) {
+              print('⚠️ 시간표 데이터가 없습니다. 포털 연동이 필요합니다.');
+            }
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text(l10n.noTimetableData),
+                duration: const Duration(seconds: 3),
+                backgroundColor: Colors.orange,
+              ),
+            );
+          }
+        }
       }
-    } catch (e) {
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ 시간표 조회 DioException: ${e.message}');
+        if (e.response != null) {
+          print('  - 상태 코드: ${e.response?.statusCode}');
+          print('  - 응답 데이터: ${e.response?.data}');
+        }
+      }
+
       if (mounted) {
-        // 에러 시 스낵바 표시하지 않고 로딩만 해제 (조용히 실패)
         setState(() => _isLoadingTimetable = false);
+        
+        final settings = Provider.of<SettingsProvider>(context, listen: false);
+        final l10n = AppLocalizations(settings.isKorean);
+        
+        String errorMessage = l10n.timetableLoadFailed;
+        if (e.response?.statusCode == 401) {
+          errorMessage = l10n.loginFailed;
+        } else if (e.response?.statusCode == 404) {
+          errorMessage = l10n.noTimetableData;
+        } else if (e.type == DioExceptionType.connectionTimeout ||
+                   e.type == DioExceptionType.receiveTimeout) {
+          errorMessage = l10n.timetableFetchTimeout;
+        } else if (e.response?.data != null) {
+          final errorData = e.response!.data;
+          if (errorData is Map && errorData.containsKey('message')) {
+            errorMessage = errorData['message'].toString();
+          }
+        }
+
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(errorMessage),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } catch (e, stackTrace) {
+      if (kDebugMode) {
+        print('❌ 시간표 조회 예외: $e');
+        print('스택 트레이스: $stackTrace');
+      }
+
+      if (mounted) {
+        setState(() => _isLoadingTimetable = false);
+        final settings = Provider.of<SettingsProvider>(context, listen: false);
+        final l10n = AppLocalizations(settings.isKorean);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('${l10n.timetableLoadFailed}: ${e.toString()}'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
       }
     }
   }
@@ -73,32 +254,78 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
   // 크롤링 완료 대기 (폴링)
   Future<TimetableResponse?> _waitForCrawlingComplete(TimetableResponse initial) async {
     var latest = initial;
-    final maxWait = const Duration(seconds: 35);
+    final maxWait = const Duration(seconds: 90); // 크롤링 시간을 90초로 증가
     final pollInterval = const Duration(seconds: 3);
     final startedAt = DateTime.now();
+    int pollCount = 0;
 
     while (DateTime.now().difference(startedAt) < maxWait) {
-      if (latest.crawlingStatus == 'completed' && latest.timetable.isNotEmpty) {
-        return latest;
+      // 크롤링 완료 확인: completed 상태이고 실제 데이터가 있는지 확인
+      if (latest.crawlingStatus == 'completed') {
+        // 데이터가 실제로 있는지 확인 (월~금 중 하나라도 과목이 있으면 완료)
+        final hasData = _orderedDays.any((day) => 
+          latest.timetable[day] != null && latest.timetable[day]!.isNotEmpty
+        );
+        
+        if (hasData || latest.count > 0) {
+          if (kDebugMode) {
+            print('📋 크롤링 완료 확인 (${pollCount}번째 폴링, count: ${latest.count})');
+          }
+          return latest;
+        }
       }
+      
       await Future.delayed(pollInterval);
+      pollCount++;
+      
       try {
         latest = await TimetableApi.I.getTimetable();
-      } catch (_) {}
+        
+        if (kDebugMode && pollCount % 5 == 0) {
+          print('📋 크롤링 상태 확인 (${pollCount}번째): ${latest.crawlingStatus}, count: ${latest.count}');
+        }
+        
+        // 크롤링이 완료되었고 데이터가 있으면 반환
+        if (latest.crawlingStatus == 'completed') {
+          final hasData = _orderedDays.any((day) => 
+            latest.timetable[day] != null && latest.timetable[day]!.isNotEmpty
+          );
+          
+          if (hasData || latest.count > 0) {
+            if (kDebugMode) {
+              print('📋 크롤링 완료 및 데이터 확인됨 (count: ${latest.count})');
+            }
+            return latest;
+          }
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          print('⚠️ 크롤링 상태 확인 중 에러 (계속 시도): $e');
+        }
+        // 에러가 발생해도 계속 시도
+      }
+    }
+    
+    if (kDebugMode) {
+      print('⚠️ 크롤링 대기 시간 초과 (${maxWait.inSeconds}초)');
+      print('  - 최종 상태: ${latest.crawlingStatus}');
+      print('  - 최종 count: ${latest.count}');
     }
     return latest;
   }
 
-  // 과목별 색상 지정
+  // 과목별 색상 지정 (월~금만 처리)
   void _assignColors(TimetableResponse response) {
     _subjectColorMap.clear();
     final uniqueSubjects = <String>{};
 
-    response.timetable.forEach((day, subjects) {
+    // 월~금만 처리 (토, 일 제외)
+    for (final day in _orderedDays) {
+      final subjects = response.timetable[day] ?? [];
       for (final subject in subjects) {
         uniqueSubjects.add(subject.subjectName);
       }
-    });
+    }
 
     var index = 0;
     for (final subjectName in uniqueSubjects) {
@@ -122,13 +349,15 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
   // 로그인 성공 후 계정 저장 팝업
   Future<void> _handlePortalLoginSuccess() async {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('포털 로그인 성공! 계정 정보를 저장해주세요.'), duration: Duration(seconds: 2)));
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+    final l10n = AppLocalizations(settings.isKorean);
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.portalLoginSuccess), duration: const Duration(seconds: 2)));
 
     final saved = await _showPortalAccountSaveDialog();
     if (saved != true) return;
 
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('서버에 저장되었습니다. 시간표를 가져옵니다.'), duration: Duration(seconds: 2)));
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.accountSavedFetching), duration: const Duration(seconds: 2)));
 
     await _fetchTimetableFromServer(waitForCrawling: true);
   }
@@ -143,41 +372,47 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
-        return StatefulBuilder(
-          builder: (context, setStateDialog) {
-            Future<void> submit() async {
-              final schoolId = idController.text.trim();
-              final password = pwController.text;
+        return Consumer<SettingsProvider>(
+          builder: (context, settings, _) {
+            final l10n = AppLocalizations(settings.isKorean);
+            
+            return StatefulBuilder(
+              builder: (context, setStateDialog) {
+                Future<void> submit() async {
+                  final schoolId = idController.text.trim();
+                  final password = pwController.text;
 
-              if (schoolId.isEmpty || password.isEmpty) return;
+                  if (schoolId.isEmpty || password.isEmpty) return;
 
-              setStateDialog(() => isSubmitting = true);
+                  setStateDialog(() => isSubmitting = true);
 
-              try {
-                await AuthRepository.I.saveSchoolAccount(schoolId: schoolId, schoolPassword: password);
-                if (mounted) Navigator.of(dialogContext).pop(true);
-              } catch (e) {
-                if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('저장 실패: $e'), backgroundColor: Colors.red));
-                setStateDialog(() => isSubmitting = false);
-              }
-            }
+                  try {
+                    await AuthRepository.I.saveSchoolAccount(schoolId: schoolId, schoolPassword: password);
+                    if (mounted) Navigator.of(dialogContext).pop(true);
+                  } catch (e) {
+                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${l10n.saveFailed}: $e'), backgroundColor: Colors.red));
+                    setStateDialog(() => isSubmitting = false);
+                  }
+                }
 
-            return AlertDialog(
-              title: const Text('포털 계정 저장'),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Text('학번과 비밀번호를 입력하면\n자동으로 시간표를 가져옵니다.', style: TextStyle(fontSize: 13, color: Colors.grey)),
-                  const SizedBox(height: 16),
-                  TextField(controller: idController, decoration: const InputDecoration(labelText: '학번/ID', border: OutlineInputBorder(), prefixIcon: Icon(Icons.person))),
-                  const SizedBox(height: 12),
-                  TextField(controller: pwController, obscureText: true, decoration: const InputDecoration(labelText: '비밀번호', border: OutlineInputBorder(), prefixIcon: Icon(Icons.lock))),
-                ],
-              ),
-              actions: [
-                TextButton(onPressed: isSubmitting ? null : () => Navigator.of(dialogContext).pop(false), child: const Text('취소')),
-                ElevatedButton(onPressed: isSubmitting ? null : submit, child: isSubmitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : const Text('저장')),
-              ],
+                return AlertDialog(
+                  title: Text(l10n.portalAccountSave),
+                  content: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(l10n.portalAccountSaveDescription, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                      const SizedBox(height: 16),
+                      TextField(controller: idController, decoration: InputDecoration(labelText: l10n.portalId, border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.person))),
+                      const SizedBox(height: 12),
+                      TextField(controller: pwController, obscureText: true, decoration: InputDecoration(labelText: l10n.password, border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.lock))),
+                    ],
+                  ),
+                  actions: [
+                    TextButton(onPressed: isSubmitting ? null : () => Navigator.of(dialogContext).pop(false), child: Text(l10n.cancel)),
+                    ElevatedButton(onPressed: isSubmitting ? null : submit, child: isSubmitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : Text(l10n.save)),
+                  ],
+                );
+              },
             );
           },
         );
@@ -201,10 +436,39 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final hasData = _timetableData != null && _timetableData!.timetable.isNotEmpty;
+    // SettingsProvider를 watch하여 언어 변경 감지
+    return Consumer<SettingsProvider>(
+      builder: (context, settings, _) {
+        final l10n = AppLocalizations(settings.isKorean);
+        
+        // 데이터가 있고 실제로 과목이 있는지 확인 (월~금만 체크)
+        bool hasData = false;
+        if (_timetableData != null) {
+          // 월~금 중 하나라도 과목이 있으면 데이터가 있는 것으로 간주
+          hasData = _orderedDays.any((day) => 
+            _timetableData!.timetable[day] != null && 
+            _timetableData!.timetable[day]!.isNotEmpty
+          ) || _timetableData!.count > 0;
+        }
 
-    return Scaffold(
-      appBar: AppBar(title: const Text('학기 시간표'), centerTitle: true, elevation: 0, backgroundColor: Colors.white, foregroundColor: Colors.black),
+        return Scaffold(
+          appBar: AppBar(
+            title: Text(l10n.timetableTitle), 
+            centerTitle: true, 
+            elevation: 0, 
+            backgroundColor: Colors.white, 
+            foregroundColor: Colors.black,
+            actions: [
+              // 새로고침 버튼 추가
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: () {
+                  _fetchTimetableFromServer();
+                },
+                tooltip: l10n.refresh,
+              ),
+            ],
+          ),
       body: Column(
         children: [
           // 상단 컨트롤 영역
@@ -214,15 +478,41 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                if (_timetableData?.lastCrawledAt != null)
-                  Text('업데이트: ${_timetableData!.lastCrawledAt!.month}/${_timetableData!.lastCrawledAt!.day}', style: const TextStyle(fontSize: 12, color: Colors.grey))
+                if (_timetableData != null)
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      if (_timetableData!.lastCrawledAt != null)
+                        Text(
+                          '${l10n.updating}: ${_timetableData!.lastCrawledAt!.month}/${_timetableData!.lastCrawledAt!.day}',
+                          style: const TextStyle(fontSize: 12, color: Colors.grey),
+                        )
+                      else if (_timetableData!.crawlingStatus == 'crawling')
+                        Text(
+                          l10n.crawling,
+                          style: const TextStyle(fontSize: 12, color: Colors.blue),
+                        )
+                      else
+                        Text(l10n.noData, style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                      if (_timetableData!.crawlingStatus == 'crawling')
+                        Text(
+                          l10n.fetchingTimetableMessage,
+                          style: const TextStyle(fontSize: 10, color: Colors.blue),
+                        )
+                      else if (_timetableData!.count > 0)
+                        Text(
+                          '${l10n.subjectsCount} ${_timetableData!.count}',
+                          style: const TextStyle(fontSize: 10, color: Colors.grey),
+                        ),
+                    ],
+                  )
                 else
-                  const Text('데이터 없음', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                  Text(l10n.loading, style: const TextStyle(fontSize: 12, color: Colors.grey)),
                 
                 ElevatedButton.icon(
-                  onPressed: _openPortalWebView,
+                  onPressed: _isLoadingTimetable ? null : _openPortalWebView,
                   icon: const Icon(Icons.sync, size: 16),
-                  label: const Text('포털 연동'),
+                  label: Text(l10n.portalLink),
                   style: ElevatedButton.styleFrom(
                     backgroundColor: Colors.blue[700],
                     foregroundColor: Colors.white,
@@ -243,21 +533,50 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.calendar_today_outlined, size: 60, color: Colors.grey[300]),
+                    Icon(
+                      _timetableData?.crawlingStatus == 'crawling' 
+                        ? Icons.hourglass_empty 
+                        : Icons.calendar_today_outlined, 
+                      size: 60, 
+                      color: _timetableData?.crawlingStatus == 'crawling' 
+                        ? Colors.blue[300] 
+                        : Colors.grey[300]
+                    ),
                     const SizedBox(height: 16),
-                    const Text("연동된 시간표가 없습니다.\n'포털 연동' 버튼을 눌러주세요.", textAlign: TextAlign.center, style: TextStyle(color: Colors.grey)),
+                    Text(
+                      _timetableData?.crawlingStatus == 'crawling'
+                        ? l10n.fetchingTimetable
+                        : l10n.noTimetableMessage,
+                      textAlign: TextAlign.center, 
+                      style: TextStyle(
+                        color: _timetableData?.crawlingStatus == 'crawling' 
+                          ? Colors.blue[700] 
+                          : Colors.grey
+                      )
+                    ),
+                    if (_timetableData?.crawlingStatus == 'crawling')
+                      const Padding(
+                        padding: EdgeInsets.only(top: 16),
+                        child: SizedBox(
+                          width: 30,
+                          height: 30,
+                          child: CircularProgressIndicator(strokeWidth: 3),
+                        ),
+                      ),
                   ],
                 ),
               ),
             )
           else
-            Expanded(child: _buildTimetableGrid()),
+            Expanded(child: _buildTimetableGrid(l10n)),
         ],
       ),
     );
+      },
+    );
   }
 
-  Widget _buildTimetableGrid() {
+  Widget _buildTimetableGrid(AppLocalizations l10n) {
     final totalHeight = (_endHour - _startHour) * _cellHeight;
 
     return SingleChildScrollView(
@@ -333,20 +652,37 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                   Positioned(
                     top: _topOffset(subject),
                     left: 1, right: 1,
-                    height: _blockHeight(subject) - 2,
+                    height: _blockHeight(subject) - 1, // 여유 공간 확보
                     child: Container(
-                      padding: const EdgeInsets.all(4),
+                      padding: const EdgeInsets.symmetric(horizontal: 3, vertical: 2), // 패딩 조정
                       decoration: BoxDecoration(
                         color: _subjectColorMap[subject.subjectName] ?? Colors.blue[100],
                         borderRadius: BorderRadius.circular(6),
                         border: Border.all(color: Colors.black.withOpacity(0.05)),
                       ),
                       child: Column(
+                        mainAxisSize: MainAxisSize.min, // 최소 크기만 사용
                         mainAxisAlignment: MainAxisAlignment.center,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          Text(subject.subjectName, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold), maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
+                          Text(
+                            subject.subjectName, 
+                            style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, height: 1.1), 
+                            maxLines: 2, 
+                            overflow: TextOverflow.ellipsis, 
+                            textAlign: TextAlign.center,
+                          ),
                           if (subject.location.isNotEmpty)
-                            Text(subject.location, style: const TextStyle(fontSize: 9, color: Colors.black54), maxLines: 1, overflow: TextOverflow.ellipsis),
+                            Padding(
+                              padding: const EdgeInsets.only(top: 1),
+                              child: Text(
+                                subject.location, 
+                                style: const TextStyle(fontSize: 8, color: Colors.black54, height: 1.0), 
+                                maxLines: 1, 
+                                overflow: TextOverflow.ellipsis,
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
                         ],
                       ),
                     ),

@@ -113,23 +113,18 @@ class NoticeApi {
         throw Exception('셔틀 공지 리스트 조회 실패: ${resp.statusCode}');
       }
 
-      if (kDebugMode) {
-        print('✅ 셔틀 공지 리스트 응답 데이터 타입: ${resp.data.runtimeType}');
-        print('셔틀 공지 리스트 응답 데이터: ${resp.data}');
-      }
-
       // API 스펙에 따르면 응답은 바로 배열 형태: [{ "_id": "...", "title": "...", "postedAt": "..." }]
       if (resp.data is! List) {
-        if (kDebugMode) {
-          print('⚠️ 응답이 리스트가 아닙니다. 응답 타입: ${resp.data.runtimeType}');
-        }
         throw Exception('셔틀 공지 리스트 조회 실패: 응답 형식이 올바르지 않습니다. 배열이 아닙니다.');
       }
 
       final List<dynamic> jsonList = resp.data as List<dynamic>;
-      
+
       if (kDebugMode) {
-        print('셔틀 공지 리스트 파싱: ${jsonList.length}개 항목');
+        print('✅ 셔틀 공지 리스트 응답: ${jsonList.length}개 항목');
+        if (jsonList.isNotEmpty) {
+          print('첫 번째 항목 샘플: ${jsonList[0]}');
+        }
       }
 
       // 각 항목을 ShuttleNoticeSummary로 변환
@@ -151,7 +146,7 @@ class NoticeApi {
           .toList();
 
       if (kDebugMode) {
-        print('✅ 셔틀 공지 리스트 파싱 완료: ${notices.length}개');
+        print('✅ 셔틀 공지 파싱 완료: ${notices.length}개');
       }
 
       return notices;
@@ -203,17 +198,8 @@ class NoticeApi {
         throw Exception('셔틀 공지 상세 조회 실패: ${resp.statusCode} / ${resp.data}');
       }
 
-      if (kDebugMode) {
-        print('✅ 셔틀 공지 상세 응답 데이터 타입: ${resp.data.runtimeType}');
-      }
-
       // 응답이 JSON인지 확인
       if (resp.data is String) {
-        if (kDebugMode) {
-          print('⚠️ 응답이 JSON이 아닙니다. 응답 타입: ${resp.data.runtimeType}');
-          final preview = resp.data.toString().substring(0, resp.data.toString().length > 200 ? 200 : resp.data.toString().length);
-          print('⚠️ 응답 미리보기: $preview...');
-        }
         throw Exception('서버가 JSON 대신 다른 형식을 반환했습니다.');
       }
 
@@ -225,29 +211,8 @@ class NoticeApi {
         throw Exception('예상치 못한 응답 형식입니다. Map이 아닙니다.');
       }
 
-      if (kDebugMode) {
-        print('셔틀 공지 상세 파싱 시작');
-        print('  - ID: ${jsonMap['_id']}');
-        print('  - 포털 공지 ID: ${jsonMap['portalNoticeId']}');
-        print('  - 제목: ${jsonMap['title']}');
-        print('  - 요약 존재 여부: ${jsonMap.containsKey('summary') && jsonMap['summary'] != null && (jsonMap['summary'] as String).isNotEmpty}');
-        if (jsonMap.containsKey('summary')) {
-          final summary = jsonMap['summary'];
-          if (summary != null && summary.toString().trim().isNotEmpty) {
-            print('  - 요약 길이: ${summary.toString().length}자');
-            print('  - 요약 미리보기: ${summary.toString().substring(0, summary.toString().length > 100 ? 100 : summary.toString().length)}...');
-          } else {
-            print('  - 요약: 없음 (빈 문자열 또는 null)');
-          }
-        }
-      }
-
       try {
         final notice = ShuttleNoticeDetail.fromJson(jsonMap);
-        if (kDebugMode) {
-          print('✅ 셔틀 공지 상세 파싱 완료');
-          print('  - 요약 표시 여부: ${notice.hasSummary}');
-        }
         return notice;
       } catch (e) {
         if (kDebugMode) {
@@ -288,49 +253,73 @@ class NoticeApi {
     const defaultBaseUrl = 'http://124.61.202.9:8080';
     final baseUrl = envBaseUrl.isEmpty ? defaultBaseUrl : envBaseUrl;
 
+    if (kDebugMode) {
+      print('🔄 셔틀 공지 동기화 시작: $baseUrl/api/notices/shuttle/sync');
+      // 인증 토큰 확인
+      final token = AuthService.I.token;
+      if (token == null) {
+        print('⚠️ 인증 토큰이 없습니다. 로그인이 필요할 수 있습니다.');
+      } else {
+        print('✅ 인증 토큰 존재: ${token.substring(0, 20)}...');
+      }
+    }
+
     // 크롤링 및 LLM 처리는 시간이 오래 걸릴 수 있으므로 타임아웃을 매우 길게 설정
     // (타임아웃 없이 작동하도록 충분히 긴 시간 설정)
     final syncDio = Dio(BaseOptions(
       baseUrl: baseUrl,
-      connectTimeout: const Duration(hours: 1), // 연결 타임아웃 (1시간)
-      sendTimeout: const Duration(hours: 1), // 요청 전송 타임아웃 (1시간)
-      receiveTimeout: const Duration(hours: 1), // 응답 대기 타임아웃 (1시간 - LLM 처리 시간 고려)
+      connectTimeout: const Duration(minutes: 10), // 연결 타임아웃 (10분)
+      sendTimeout: const Duration(minutes: 10), // 요청 전송 타임아웃 (10분)
+      receiveTimeout: const Duration(minutes: 10), // 응답 대기 타임아웃 (10분 - LLM 처리 시간 고려)
       headers: {
         'Content-Type': 'application/json',
         'Accept': 'application/json',
       },
       responseType: ResponseType.json,
       validateStatus: (status) {
-        // 200과 500 모두 처리 (500도 JSON 메시지를 포함할 수 있음)
-        return status != null && (status == 200 || status == 500);
+        // 200-299는 성공, 400-599는 에러로 처리 (모든 상태 코드를 받아서 처리)
+        // 500도 JSON 메시지를 포함할 수 있으므로 처리 필요
+        return status != null && status >= 200 && status < 600;
       },
     ));
     syncDio.interceptors.add(AuthInterceptor());
 
-    // Options는 타임아웃을 받지 않음 (BaseOptions에서 이미 설정됨)
+    // AuthInterceptor가 이미 토큰을 추가하므로 attachAuthHeader는 불필요하지만,
+    // 명시적으로 추가하여 확실하게 함 (중복되어도 문제 없음)
     final opts = Options();
     AuthService.I.attachAuthHeader(opts);
 
-    if (kDebugMode) {
-      print('셔틀 공지 동기화 요청: POST /api/notices/shuttle/sync');
-      print('동기화 타임아웃: 연결 1시간, 전송 1시간, 응답 대기 1시간 (LLM 처리 시간 고려)');
-    }
-
     try {
+      if (kDebugMode) {
+        print('📤 동기화 요청 전송 중...');
+      }
+      
       final resp = await syncDio.post(
         '/api/notices/shuttle/sync',
         options: opts,
       );
+      
+      if (kDebugMode) {
+        print('📥 동기화 응답 수신: statusCode=${resp.statusCode}');
+      }
 
-      // 200 응답 처리: { "message": "셔틀 공지 동기화 완료" }
+      // 200 응답 처리: { "message": "셔틀 공지 동기화 완료", "processed": 10, "shuttleRelated": 0, "errors": 0, "llmFailures": 0 }
       if (resp.statusCode == 200) {
-        if (kDebugMode) {
-          print('✅ 셔틀 공지 동기화 성공: ${resp.data}');
-        }
 
         // 응답이 Map인 경우
         if (resp.data is Map<String, dynamic>) {
           final responseMap = resp.data as Map<String, dynamic>;
+          
+          // 디버그 로그: 동기화 상세 정보 출력
+          if (kDebugMode) {
+            print('✅ 셔틀 공지 동기화 응답:');
+            print('  - message: ${responseMap['message']}');
+            print('  - processed: ${responseMap['processed']}');
+            print('  - shuttleRelated: ${responseMap['shuttleRelated']}');
+            print('  - errors: ${responseMap['errors']}');
+            print('  - llmFailures: ${responseMap['llmFailures']}');
+          }
+          
           // message 필드가 있는지 확인
           if (responseMap.containsKey('message')) {
             return responseMap;
@@ -348,10 +337,39 @@ class NoticeApi {
         return {'message': '셔틀 공지 동기화 완료'};
       }
 
-      // 500 응답 처리: 서버가 에러 메시지를 JSON으로 반환할 수 있음
-      if (resp.statusCode == 500) {
+      // 400-499 클라이언트 에러 처리
+      if (resp.statusCode != null && resp.statusCode! >= 400 && resp.statusCode! < 500) {
         if (kDebugMode) {
-          print('❌ 셔틀 공지 동기화 실패 (500): ${resp.data}');
+          print('❌ 셔틀 공지 동기화 클라이언트 에러 (${resp.statusCode}): ${resp.data}');
+        }
+
+        String errorMessage = '요청 오류가 발생했습니다.';
+        if (resp.statusCode == 401) {
+          errorMessage = '인증이 필요합니다. 다시 로그인해주세요.';
+        } else if (resp.statusCode == 403) {
+          errorMessage = '권한이 없습니다.';
+        } else if (resp.statusCode == 404) {
+          errorMessage = '동기화 API를 찾을 수 없습니다.';
+        }
+        
+        if (resp.data is Map<String, dynamic>) {
+          final errorData = resp.data as Map<String, dynamic>;
+          if (errorData.containsKey('message')) {
+            errorMessage = errorData['message'] as String;
+          } else if (errorData.containsKey('error')) {
+            errorMessage = errorData['error'] as String;
+          }
+        } else if (resp.data is String) {
+          errorMessage = resp.data as String;
+        }
+
+        throw Exception('동기화 실패: $errorMessage');
+      }
+
+      // 500-599 서버 에러 처리: 서버가 에러 메시지를 JSON으로 반환할 수 있음
+      if (resp.statusCode != null && resp.statusCode! >= 500) {
+        if (kDebugMode) {
+          print('❌ 셔틀 공지 동기화 서버 에러 (${resp.statusCode}): ${resp.data}');
         }
 
         // 서버가 보낸 메시지 추출
@@ -370,20 +388,62 @@ class NoticeApi {
         throw Exception('동기화 실패: $errorMessage');
       }
 
-      // 기타 상태 코드
-      throw Exception('셔틀 공지 동기화 실패: ${resp.statusCode}');
+      // 기타 상태 코드 (200-299가 아닌 경우)
+      if (resp.statusCode == null || resp.statusCode! < 200 || resp.statusCode! >= 300) {
+        throw Exception('셔틀 공지 동기화 실패: 예상치 못한 상태 코드 ${resp.statusCode}');
+      }
+
+      // 200-299 범위이지만 200이 아닌 경우 (이론적으로는 발생하지 않아야 함)
+      return {'message': '셔틀 공지 동기화 완료', 'statusCode': resp.statusCode};
     } on DioException catch (e) {
       if (kDebugMode) {
-        print('❌ 셔틀 공지 동기화 DioException: ${e.message}');
-        print('에러 타입: ${e.type}');
+        print('❌ 셔틀 공지 동기화 DioException 발생');
+        print('  - 메시지: ${e.message}');
+        print('  - 에러 타입: ${e.type}');
+        print('  - 요청 URL: ${e.requestOptions.uri}');
+        print('  - 요청 메서드: ${e.requestOptions.method}');
         if (e.response != null) {
-          print('응답 상태 코드: ${e.response?.statusCode}');
-          print('응답 데이터: ${e.response?.data}');
+          print('  - 응답 상태 코드: ${e.response?.statusCode}');
+          print('  - 응답 데이터: ${e.response?.data}');
+          print('  - 응답 헤더: ${e.response?.headers}');
+        } else {
+          print('  - 응답 없음 (네트워크 오류 가능)');
+        }
+        if (e.type == DioExceptionType.connectionTimeout) {
+          print('  - 연결 타임아웃: 서버에 연결할 수 없습니다.');
+        } else if (e.type == DioExceptionType.receiveTimeout) {
+          print('  - 수신 타임아웃: 서버 응답이 너무 오래 걸립니다.');
+        } else if (e.type == DioExceptionType.sendTimeout) {
+          print('  - 전송 타임아웃: 요청 전송이 너무 오래 걸립니다.');
         }
       }
       
-      // 500 에러 처리: 서버가 에러 메시지를 JSON으로 반환할 수 있음
-      if (e.response?.statusCode == 500) {
+      // 400-499 클라이언트 에러 처리
+      if (e.response?.statusCode != null && e.response!.statusCode! >= 400 && e.response!.statusCode! < 500) {
+        String errorMessage = '요청 오류가 발생했습니다.';
+        if (e.response!.statusCode == 401) {
+          errorMessage = '인증이 필요합니다. 다시 로그인해주세요.';
+        } else if (e.response!.statusCode == 403) {
+          errorMessage = '권한이 없습니다.';
+        } else if (e.response!.statusCode == 404) {
+          errorMessage = '동기화 API를 찾을 수 없습니다.';
+        }
+        
+        if (e.response?.data is Map<String, dynamic>) {
+          final errorData = e.response!.data as Map<String, dynamic>;
+          if (errorData.containsKey('message')) {
+            errorMessage = errorData['message'] as String;
+          } else if (errorData.containsKey('error')) {
+            errorMessage = errorData['error'] as String;
+          }
+        } else if (e.response?.data is String) {
+          errorMessage = e.response!.data as String;
+        }
+        throw Exception('동기화 실패: $errorMessage');
+      }
+      
+      // 500-599 서버 에러 처리: 서버가 에러 메시지를 JSON으로 반환할 수 있음
+      if (e.response?.statusCode != null && e.response!.statusCode! >= 500) {
         String errorMessage = '서버에서 동기화를 처리하는 중 오류가 발생했습니다.';
         if (e.response?.data is Map<String, dynamic>) {
           final errorData = e.response!.data as Map<String, dynamic>;
@@ -409,8 +469,10 @@ class NoticeApi {
       throw Exception('셔틀 공지 동기화 실패: ${e.message}');
     } catch (e, stackTrace) {
       if (kDebugMode) {
-        print('❌ 셔틀 공지 동기화 예외: $e');
-        print('스택 트레이스: $stackTrace');
+        print('❌ 셔틀 공지 동기화 예외 발생');
+        print('  - 예외 타입: ${e.runtimeType}');
+        print('  - 메시지: $e');
+        print('  - 스택 트레이스: $stackTrace');
       }
       rethrow;
     }

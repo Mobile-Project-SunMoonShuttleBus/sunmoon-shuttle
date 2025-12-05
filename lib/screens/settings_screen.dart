@@ -5,6 +5,7 @@ import '../providers/auth_provider.dart';
 import '../providers/settings_provider.dart'; // [필수] 설정 로직
 import '../core/localization/app_localizations.dart'; // [필수] 다국어 텍스트
 import 'auth/login_screen.dart';
+import 'notice/shuttle_notice_list_screen.dart'; // 셔틀 공지 화면
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -80,6 +81,24 @@ class SettingsScreen extends StatelessWidget {
             },
           ),
           
+          const Divider(),
+          
+          // --- 공지사항 섹션 ---
+          _buildSectionHeader('공지사항'),
+          ListTile(
+            leading: const Icon(Icons.announcement),
+            title: const Text('셔틀 공지'),
+            subtitle: const Text('셔틀버스 관련 공지사항'),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ShuttleNoticeListScreen(),
+                ),
+              );
+            },
+          ),
           const Divider(),
           
           // --- 앱 정보 섹션 ---

@@ -80,8 +80,19 @@ class RegisterProvider extends ChangeNotifier {
         passwordConfirm: passwordConfirm,
       );
 
-      if (result['message'] == 'REGISTER_SUCCESS' || result['success'] == true) { 
+      // 성공 판단: success 필드가 true이거나, 메시지에 성공 관련 키워드가 포함되어 있으면 성공
+      final message = result['message']?.toString() ?? '';
+      final messageUpper = message.toUpperCase();
+      final success = result['success'] == true || 
+                      messageUpper.contains('REGISTER') ||
+                      message.contains('완료') ||
+                      message.contains('성공') ||
+                      messageUpper.contains('COMPLETE') ||
+                      messageUpper.contains('SUCCESS');
+
+      if (success) {
         _isLoading = false;
+        _errorMessage = null; // 성공 시 에러 메시지 초기화
         notifyListeners();
         return true;
       }

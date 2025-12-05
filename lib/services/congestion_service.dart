@@ -16,8 +16,9 @@ class CongestionService {
   StreamSubscription<Position>? _positionStream;
   LocationData? _lastLocation;
   bool _isTracking = false;
-  String? _currentRouteId;
-  String? _currentStopId;
+  String? _currentBusType; // shuttle 또는 campus
+  String? _currentStartId; // 출발지 이름 (예: "아산캠퍼스")
+  String? _currentStopId; // 도착지 이름 (예: "아산(KTX)역")
 
   // 버스 평균 속도 (km/h)
   static const double _busAverageSpeed = 50.0; // 도심/고속도로 평균
@@ -50,9 +51,10 @@ class CongestionService {
 
   /// 위치 추적 시작 (자동 감지 모드)
   /// 지도 화면에 있을 때 자동으로 호출
-  /// routeId와 stopId는 나중에 자동 감지하거나 기본값 사용
+  /// busType, startId, stopId는 나중에 자동 감지하거나 기본값 사용
   Future<void> startAutoTracking({
-    String? routeId,
+    String? busType,
+    String? startId,
     String? stopId,
     Function(String)? onError,
   }) async {
@@ -87,15 +89,15 @@ class CongestionService {
 
       _isTracking = true;
       _lastLocation = null;
-      _currentRouteId = routeId ?? 'R001'; // 기본값 또는 자동 감지
-      _currentStopId = stopId ?? 'S001'; // 기본값 또는 자동 감지
+      _currentBusType = busType ?? 'shuttle'; // 기본값: 셔틀버스
+      _currentStartId = startId ?? '아산캠퍼스'; // 기본값: 아산캠퍼스
+      _currentStopId = stopId ?? '아산(KTX)역'; // 기본값: 아산(KTX)역
       _consecutiveBusSpeedCount = 0;
       _stationaryCount = 0;
       _lastReportTime = null;
       _pendingReports.clear();
 
       if (kDebugMode) {
-        print('🔵 혼잡도 자동 위치 추적 시작');
       }
 
       // 위치 스트림 구독
@@ -135,10 +137,6 @@ class CongestionService {
     _stationaryCount = 0;
     _lastReportTime = null;
     _pendingReports.clear();
-
-    if (kDebugMode) {
-      print('🔵 혼잡도 위치 추적 중지');
-    }
   }
 
   /// 위치 업데이트 처리 (자동 감지)
@@ -209,15 +207,17 @@ class CongestionService {
       }
 
       // 백엔드로 리포트 전송 (빈도 제한 + null 체크)
-      if (_currentRouteId != null && _currentStopId != null) {
+      if (_currentBusType != null && _currentStartId != null && _currentStopId != null) {
         _sendCongestionReportWithThrottle(
-          routeId: _currentRouteId!,
+          busType: _currentBusType!,
+          startId: _currentStartId!,
           stopId: _currentStopId!,
           index: congestionIndex,
+          currentPosition: position,
         );
       } else {
         if (kDebugMode) {
-          print('⚠️ routeId 또는 stopId가 설정되지 않아 리포트를 전송하지 않습니다.');
+          print('⚠️ busType, startId 또는 stopId가 설정되지 않아 리포트를 전송하지 않습니다.');
         }
       }
     }
@@ -280,9 +280,11 @@ class CongestionService {
 
   /// 백엔드로 혼잡도 리포트 전송 (빈도 제한)
   void _sendCongestionReportWithThrottle({
-    required String routeId,
+    required String busType,
+    required String startId,
     required String stopId,
     required int index,
+    Position? currentPosition,
   }) {
     final now = DateTime.now();
     
@@ -299,36 +301,53 @@ class CongestionService {
 
     _lastReportTime = now;
     _sendCongestionReport(
-      routeId: routeId,
+      busType: busType,
+      startId: startId,
       stopId: stopId,
       index: index,
+      currentPosition: currentPosition,
     );
   }
 
   /// 백엔드로 혼잡도 리포트 전송
   Future<void> _sendCongestionReport({
-    required String routeId,
+    required String busType,
+    required String startId,
     required String stopId,
     required int index,
+    Position? currentPosition,
   }) async {
     try {
       final now = DateTime.now();
-      final weekday = now.weekday - 1; // 0=월요일, 6=일요일
+      final weekday = now.weekday - 1; // 0=월요일, 6=일요일 (Dart의 weekday는 1=월요일, 7=일요일)
       final timeSlot = _calculateTimeSlot(now);
 
+      // meta 정보 수집
+      CongestionMeta? meta;
+      if (currentPosition != null) {
+        // GPS 정확도는 Position 객체에서 가져올 수 있음 (미터 단위)
+        final gpsAccuracy = currentPosition.accuracy;
+        
+        // OS 정보는 간단하게 생략 (나중에 package_info_plus 추가 가능)
+        meta = CongestionMeta(
+          appVer: '1.0.0', // pubspec.yaml의 version 사용
+          os: null, // TODO: package_info_plus 또는 dart:io Platform 사용
+          gpsAcc: gpsAccuracy > 0 ? gpsAccuracy : null,
+        );
+      }
+
       final request = CongestionReportRequest(
-        routeId: routeId,
+        busType: busType,
+        startId: startId,
         stopId: stopId,
         weekday: weekday,
         timeSlot: timeSlot,
         index: index,
+        clientTs: now, // 단말에서 리포트 전송 시각
+        meta: meta,
       );
 
       await CongestionApi.I.reportCongestion(request);
-
-      if (kDebugMode) {
-        print('✅ 혼잡도 리포트 전송 완료: $index');
-      }
     } catch (e) {
       if (kDebugMode) {
         print('❌ 혼잡도 리포트 전송 실패: $e');
@@ -336,7 +355,8 @@ class CongestionService {
       
       // 실패한 리포트를 재시도 큐에 추가
       _pendingReports.add(_PendingReport(
-        routeId: routeId,
+        busType: busType,
+        startId: startId,
         stopId: stopId,
         index: index,
         retryCount: 0,
@@ -370,21 +390,20 @@ class CongestionService {
         final timeSlot = _calculateTimeSlot(now);
         
         final request = CongestionReportRequest(
-          routeId: report.routeId,
+          busType: report.busType,
+          startId: report.startId,
           stopId: report.stopId,
           weekday: weekday,
           timeSlot: timeSlot,
           index: report.index,
+          clientTs: now,
+          meta: null, // 재시도 시에는 meta 정보 없이 전송
         );
 
         await CongestionApi.I.reportCongestion(request);
         
         // 성공 시 큐에서 제거
         _pendingReports.remove(report);
-        
-        if (kDebugMode) {
-          print('✅ 리포트 재시도 성공: ${report.retryCount + 1}회 시도');
-        }
       } catch (e) {
         // 실패 시 재시도 카운트 증가
         report.retryCount++;
@@ -417,27 +436,34 @@ class CongestionService {
   /// 추적 중인지 확인
   bool get isTracking => _isTracking;
   
-  /// 현재 노선/정류장 업데이트 (자동 감지 또는 사용자 선택 시)
-  void updateRouteAndStop({String? routeId, String? stopId}) {
-    if (routeId != null) _currentRouteId = routeId;
+  /// 현재 버스 타입/출발지/도착지 업데이트 (자동 감지 또는 사용자 선택 시)
+  void updateRouteAndStop({
+    String? busType,
+    String? startId,
+    String? stopId,
+  }) {
+    if (busType != null) _currentBusType = busType;
+    if (startId != null) _currentStartId = startId;
     if (stopId != null) _currentStopId = stopId;
     
     if (kDebugMode) {
-      print('📍 노선/정류장 업데이트: routeId=$_currentRouteId, stopId=$_currentStopId');
+      print('📍 버스 정보 업데이트: busType=$_currentBusType, startId=$_currentStartId, stopId=$_currentStopId');
     }
   }
 }
 
 /// 재시도 대기 중인 리포트
 class _PendingReport {
-  final String routeId;
+  final String busType;
+  final String startId;
   final String stopId;
   final int index;
   int retryCount;
   DateTime lastRetryTime;
 
   _PendingReport({
-    required this.routeId,
+    required this.busType,
+    required this.startId,
     required this.stopId,
     required this.index,
     required this.retryCount,

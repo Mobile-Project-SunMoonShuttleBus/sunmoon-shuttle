@@ -6,7 +6,7 @@ environment:
   sdk: '>=3.2.0 <4.0.0' # Flutter 호환성을 위해 버전 범위 조정 권장
 
 dependencies:
-  # ⭐️ [핵심] 이 부분이 없어서 에러가 났던 겁니다!
+  # Flutter SDK
   flutter:
     sdk: flutter
 
@@ -26,15 +26,39 @@ dependencies:
   flutter_dotenv: ^5.2.1
 
 dev_dependencies:
-  # ⭐️ Flutter 프로젝트는 flutter_lints를 쓰는 게 좋습니다
+  # 테스트용
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0 
+  test: ^1.25.6
 
-# ⭐️ [중요] 이 부분이 있어야 아이콘/폰트 등 UI 리소스를 씁니다
+  # 린트 설정 (flutter_lints만 사용)
+  flutter_lints: ^6.0.0
+
 flutter:
   uses-material-design: true
-  
-  # assets 폴더가 있다면 주석 해제하세요
+
+  # assets 폴더가 있다면 필요에 따라 사용
   # assets:
   #   - assets/icons/
+
+  fonts:
+    - family: NotoSansKR
+      fonts:
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-Thin.ttf
+          weight: 100
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-ExtraLight.ttf
+          weight: 200
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-Light.ttf
+          weight: 300
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-Bold.ttf
+          weight: 700
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-ExtraBold.ttf
+          weight: 800
+        - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-Black.ttf
+          weight: 900
