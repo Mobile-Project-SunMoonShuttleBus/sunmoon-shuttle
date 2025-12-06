@@ -114,3 +114,79 @@ class SpeedMeasurement {
   });
 }
 
+/// 혼잡도 Overview 응답 모델
+class CongestionOverviewResponse {
+  final bool success;
+  final String busType;
+  final String dayKey;
+  final String? lastUpdated;
+  final List<CongestionRoute> routes;
+
+  CongestionOverviewResponse({
+    required this.success,
+    required this.busType,
+    required this.dayKey,
+    this.lastUpdated,
+    required this.routes,
+  });
+
+  factory CongestionOverviewResponse.fromJson(Map<String, dynamic> json) {
+    return CongestionOverviewResponse(
+      success: json['success'] ?? false,
+      busType: json['busType'] ?? '',
+      dayKey: json['dayKey'] ?? '',
+      lastUpdated: json['lastUpdated'],
+      routes: (json['routes'] as List<dynamic>?)
+          ?.map((route) => CongestionRoute.fromJson(route))
+          .toList() ?? [],
+    );
+  }
+}
+
+/// 혼잡도 노선 정보
+class CongestionRoute {
+  final String routeTitle;
+  final int timeSlotsCount;
+  final List<CongestionCard> cards;
+
+  CongestionRoute({
+    required this.routeTitle,
+    required this.timeSlotsCount,
+    required this.cards,
+  });
+
+  factory CongestionRoute.fromJson(Map<String, dynamic> json) {
+    return CongestionRoute(
+      routeTitle: json['routeTitle'] ?? '',
+      timeSlotsCount: json['timeSlotsCount'] ?? 0,
+      cards: (json['cards'] as List<dynamic>?)
+          ?.map((card) => CongestionCard.fromJson(card))
+          .toList() ?? [],
+    );
+  }
+}
+
+/// 혼잡도 카드 정보
+class CongestionCard {
+  final String departureTime;
+  final String congestionLevel; // LOW, MEDIUM, HIGH
+  final String congestionLabel; // 여유, 보통, 혼잡
+  final int samples;
+
+  CongestionCard({
+    required this.departureTime,
+    required this.congestionLevel,
+    required this.congestionLabel,
+    required this.samples,
+  });
+
+  factory CongestionCard.fromJson(Map<String, dynamic> json) {
+    return CongestionCard(
+      departureTime: json['departureTime'] ?? '',
+      congestionLevel: json['congestionLevel'] ?? 'LOW',
+      congestionLabel: json['congestionLabel'] ?? '여유',
+      samples: json['samples'] ?? 0,
+    );
+  }
+}
+

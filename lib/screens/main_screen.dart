@@ -6,6 +6,7 @@ import 'timetable_screen.dart';
 // [추가] 새로 만든 화면들 임포트
 import 'portal_login_screen.dart'; 
 import 'settings_screen.dart';
+import 'congestion_overview_screen.dart';
 import '../providers/settings_provider.dart';
 import '../core/localization/app_localizations.dart';
 
@@ -23,9 +24,10 @@ class _MainScreenState extends State<MainScreen> {
   final List<Widget> _widgetPages = [
     MainMapPage(),          // 0: 메인화면
     BusStopsScreen(),       // 1: 위치
-    TimetableScreen(),      // 2: 셔틀시간표 (기존 timetable_screen)
-    const PortalLoginScreen(), // 3: 학기시간표 (새로 추가됨)
-    const SettingsScreen(),    // 4: 설정 (새로 추가됨)
+    const CongestionOverviewScreen(), // 2: 혼잡도 모니터링 (새로 추가됨)
+    TimetableScreen(),      // 3: 셔틀시간표 (기존 timetable_screen)
+    const PortalLoginScreen(), // 4: 학기시간표 (새로 추가됨)
+    const SettingsScreen(),    // 5: 설정 (새로 추가됨)
   ];
 
   void _onItemTapped(int index) {
@@ -58,6 +60,10 @@ class _MainScreenState extends State<MainScreen> {
                 'assets/icons/nav_location.png', 
                 'assets/icons/nav_location_active.png', 
                 l10n.tabLocation
+              ),
+              _buildNavItemWithIcon(
+                Icons.traffic,
+                '혼잡도'
               ),
               _buildNavItem(
                 'assets/icons/nav_calendar_bus1.png', 
@@ -108,6 +114,15 @@ class _MainScreenState extends State<MainScreen> {
         height: 24,
         errorBuilder: (context, error, stackTrace) => const Icon(Icons.error),
       ),
+      label: label,
+    );
+  }
+
+  // [헬퍼 함수] 아이콘으로 탭 아이템 생성 (혼잡도용)
+  BottomNavigationBarItem _buildNavItemWithIcon(IconData icon, String label) {
+    return BottomNavigationBarItem(
+      icon: Icon(icon, size: 24),
+      activeIcon: Icon(icon, size: 24),
       label: label,
     );
   }

@@ -67,5 +67,45 @@ class CongestionApi {
       rethrow;
     }
   }
+
+  /// 혼잡도 Overview 조회
+  /// GET /api/congestion/{busType}/overview?dayKey=YYYY-MM-DD
+  /// busType: 'campus' 또는 'shuttle'
+  Future<CongestionOverviewResponse> getOverview({
+    required String busType,
+    String? dayKey,
+  }) async {
+    if (kDebugMode) {
+      print('혼잡도 Overview 조회: busType=$busType, dayKey=$dayKey');
+    }
+
+    try {
+      final queryParams = <String, dynamic>{};
+      if (dayKey != null) {
+        queryParams['dayKey'] = dayKey;
+      }
+
+      final resp = await _dio.get(
+        '/api/congestion/$busType/overview',
+        queryParameters: queryParams,
+      );
+
+      return CongestionOverviewResponse.fromJson(resp.data);
+    } on DioException catch (e) {
+      if (kDebugMode) {
+        print('❌ 혼잡도 Overview 조회 실패: ${e.message}');
+        if (e.response != null) {
+          print('응답 상태 코드: ${e.response?.statusCode}');
+          print('응답 데이터: ${e.response?.data}');
+        }
+      }
+      throw Exception('혼잡도 Overview 조회 실패: ${e.message}');
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ 혼잡도 Overview 조회 예외: $e');
+      }
+      rethrow;
+    }
+  }
 }
 
