@@ -105,6 +105,12 @@ class CongestionApi {
         queryParameters: queryParams,
       );
 
+      if (kDebugMode) {
+        print('✅ API 응답 수신:');
+        print('상태 코드: ${resp.statusCode}');
+        print('응답 전체: ${resp.data}');
+      }
+
       return CongestionOverviewResponse.fromJson(resp.data);
     } on DioException catch (e) {
       if (kDebugMode) {
