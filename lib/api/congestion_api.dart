@@ -71,12 +71,27 @@ class CongestionApi {
   /// 혼잡도 Overview 조회
   /// GET /api/congestion/{busType}/overview?dayKey=YYYY-MM-DD
   /// busType: 'campus' 또는 'shuttle'
+  /// 주의: 현재 백엔드는 'campus'만 지원하므로 'shuttle' 요청은 빈 응답 반환
   Future<CongestionOverviewResponse> getOverview({
     required String busType,
     String? dayKey,
   }) async {
     if (kDebugMode) {
       print('혼잡도 Overview 조회: busType=$busType, dayKey=$dayKey');
+    }
+
+    // 셔틀버스는 아직 백엔드 지원 안 함 - 빈 응답 반환
+    if (busType == 'shuttle') {
+      if (kDebugMode) {
+        print('⚠️ 셔틀버스 API는 아직 구현되지 않았습니다. 빈 데이터 반환.');
+      }
+      return CongestionOverviewResponse(
+        success: true,
+        busType: 'shuttle',
+        dayKey: dayKey ?? DateTime.now().toString().split(' ')[0],
+        lastUpdated: null,
+        routes: [],
+      );
     }
 
     try {
