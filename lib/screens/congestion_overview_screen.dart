@@ -39,26 +39,11 @@ class _CongestionOverviewScreenState extends State<CongestionOverviewScreen> {
         dayKey: _dayKey,
       );
 
-      if (kDebugMode) {
-        print('✅ 혼잡도 데이터 수신:');
-        print('  - busType: ${response.busType}');
-        print('  - dayKey: ${response.dayKey}');
-        print('  - routes: ${response.routes.length}개');
-        if (response.routes.isNotEmpty) {
-          for (var i = 0; i < response.routes.length; i++) {
-            print('    [$i] ${response.routes[i].routeTitle} - ${response.routes[i].cards.length}개 카드');
-          }
-        }
-      }
-
       setState(() {
         _data = response;
         _isLoading = false;
       });
     } catch (e) {
-      if (kDebugMode) {
-        print('❌ 혼잡도 데이터 조회 실패: $e');
-      }
       setState(() {
         _error = '데이터를 불러오는 중 오류가 발생했습니다: ${e.toString()}';
         _isLoading = false;
@@ -128,8 +113,6 @@ class _CongestionOverviewScreenState extends State<CongestionOverviewScreen> {
 
   /// 헤더 위젯
   Widget _buildHeader() {
-    final displayDate = _dayKey ?? DateTime.now().toString().split(' ')[0];
-    
     return Container(
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 12),
       decoration: BoxDecoration(
@@ -142,109 +125,56 @@ class _CongestionOverviewScreenState extends State<CongestionOverviewScreen> {
           ),
         ],
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          // 왼쪽: 제목
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // 왼쪽: 제목
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
+              const Text(
+                '실시간 혼잡도 모니터링',
+                style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 4),
+              Row(
                 children: [
-                  const Text(
-                    '실시간 혼잡도 모니터링',
-                    style: TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.black87,
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: Colors.green,
+                      shape: BoxShape.circle,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  Row(
-                    children: [
-                      Container(
-                        width: 8,
-                        height: 8,
-                        decoration: const BoxDecoration(
-                          color: Colors.green,
-                          shape: BoxShape.circle,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      const Text(
-                        '실시간 업데이트 중',
-                        style: TextStyle(
-                          fontSize: 12,
-                          color: Colors.grey,
-                        ),
-                      ),
-                    ],
+                  const SizedBox(width: 6),
+                  const Text(
+                    '실시간 업데이트 중',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
+                    ),
                   ),
                 ],
               ),
-              // 오른쪽: 날짜 선택
-              GestureDetector(
-                onTap: _selectDate,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.blue.shade300),
-                    borderRadius: BorderRadius.circular(6),
-                    color: Colors.blue.shade50,
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.calendar_today, size: 16, color: Colors.blue),
-                      const SizedBox(width: 6),
-                      Text(
-                        displayDate,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          color: Colors.blue,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
             ],
           ),
-          // 마지막 업데이트 정보
+          // 오른쪽: 마지막 업데이트 시간
           if (_data != null && _data!.lastUpdated != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 8),
-              child: Text(
-                '마지막 업데이트: ${_formatLastUpdated(_data!.lastUpdated)}',
-                style: const TextStyle(
-                  fontSize: 11,
-                  color: Colors.grey,
-                ),
+            Text(
+              '마지막 업데이트: ${_formatLastUpdated(_data!.lastUpdated)}',
+              style: const TextStyle(
+                fontSize: 12,
+                color: Colors.grey,
               ),
             ),
         ],
       ),
     );
-  }
-
-  /// 날짜 선택 다이얼로그
-  Future<void> _selectDate() async {
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _dayKey != null ? DateTime.parse(_dayKey!) : DateTime.now(),
-      firstDate: DateTime(2025, 1, 1),
-      lastDate: DateTime.now(),
-    );
-
-    if (picked != null) {
-      final formattedDate = '${picked.year}-${picked.month.toString().padLeft(2, '0')}-${picked.day.toString().padLeft(2, '0')}';
-      setState(() {
-        _dayKey = formattedDate;
-      });
-      _fetchOverview(_activeBusType);
-    }
   }
 
   /// 탭 위젯

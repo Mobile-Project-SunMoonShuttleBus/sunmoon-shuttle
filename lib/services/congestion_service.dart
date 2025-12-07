@@ -89,7 +89,7 @@ class CongestionService {
 
       _isTracking = true;
       _lastLocation = null;
-      _currentBusType = busType ?? 'campus'; // 기본값: 통학버스 (API에서 제공하는 유일한 엔드포인트)
+      _currentBusType = busType ?? 'shuttle'; // 기본값: 셔틀버스
       _currentStartId = startId ?? '아산캠퍼스'; // 기본값: 아산캠퍼스
       _currentStopId = stopId ?? '아산(KTX)역'; // 기본값: 아산(KTX)역
       _consecutiveBusSpeedCount = 0;
