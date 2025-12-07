@@ -39,11 +39,26 @@ class _CongestionOverviewScreenState extends State<CongestionOverviewScreen> {
         dayKey: _dayKey,
       );
 
+      if (kDebugMode) {
+        print('✅ 혼잡도 데이터 수신:');
+        print('  - busType: ${response.busType}');
+        print('  - dayKey: ${response.dayKey}');
+        print('  - routes: ${response.routes.length}개');
+        if (response.routes.isNotEmpty) {
+          for (var i = 0; i < response.routes.length; i++) {
+            print('    [$i] ${response.routes[i].routeTitle} - ${response.routes[i].cards.length}개 카드');
+          }
+        }
+      }
+
       setState(() {
         _data = response;
         _isLoading = false;
       });
     } catch (e) {
+      if (kDebugMode) {
+        print('❌ 혼잡도 데이터 조회 실패: $e');
+      }
       setState(() {
         _error = '데이터를 불러오는 중 오류가 발생했습니다: ${e.toString()}';
         _isLoading = false;
