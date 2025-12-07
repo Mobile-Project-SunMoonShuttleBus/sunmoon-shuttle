@@ -177,7 +177,7 @@ class _CongestionOverviewScreenState extends State<CongestionOverviewScreen> {
     );
   }
 
-  /// 탭 위젯
+  /// 탭 위젯 (현재 API는 'campus' 타입만 지원)
   Widget _buildTabs() {
     return Container(
       margin: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
@@ -187,9 +187,6 @@ class _CongestionOverviewScreenState extends State<CongestionOverviewScreen> {
       ),
       child: Row(
         children: [
-          Expanded(
-            child: _buildTabButton('셔틀버스', 'shuttle'),
-          ),
           Expanded(
             child: _buildTabButton('통학버스', 'campus'),
           ),
