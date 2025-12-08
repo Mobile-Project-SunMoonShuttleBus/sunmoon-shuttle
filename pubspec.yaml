@@ -43,20 +43,11 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
-<<<<<<< HEAD
   # assets 폴더가 있다면 필요에 따라 사용
-  # assets:
-  #   - assets/icons/
-=======
-  
-  # Assets 섹션 (이미지 로딩을 위한 경로)
   assets:
-    - assets/icons/
-    - assets/stops/
-  
+   - assets/icons/
+   - assets/stops/
 
-  # Fonts 섹션 (NotoSansKR 폰트 등록)
->>>>>>> feature/complete-application-update
 
   fonts:
     - family: NotoSansKR
@@ -79,8 +70,5 @@ flutter:
           weight: 800
         - asset: assets/fonts/Noto_Sans_KR/static/NotoSansKR-Black.ttf
           weight: 900
-<<<<<<< HEAD
-=======
 
 
->>>>>>> feature/complete-application-update
