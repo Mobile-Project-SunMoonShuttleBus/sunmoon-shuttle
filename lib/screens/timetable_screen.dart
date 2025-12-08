@@ -1,8 +1,9 @@
+// 백엔드 api 정상화시 적용할 코드
 import 'package:flutter/material.dart';
 import 'dart:async';
-import 'package:dio/dio.dart'; // Dio 패키지 (구조 유지)
-import 'dart:math'; // max 함수 (구조 유지)
-// import '../api/dio_client.dart'; // API 요청 제거
+import 'package:dio/dio.dart'; // Dio 패키지
+import 'dart:math'; // max 함수 사용을 위해 필수
+import '../api/dio_client.dart'; // DioClient 경로에 맞게 수정해주세요
 
 class TimetableScreen extends StatefulWidget {
   @override
@@ -20,7 +21,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
     '온양 터미널/역'
   ];
 
-  // 2. API 요청 시 사용할 정확한 도착지/출발지 명칭 (UI 헤더용으로만 사용)
+  // 2. API 요청 시 사용할 정확한 도착지/출발지 명칭 (서버 요청용)
   final Map<int, String> _tabApiArrivalNames = {
     0: '천안 아산역',
     1: '천안역',
@@ -28,7 +29,7 @@ class _TimetableScreenState extends State<TimetableScreen> {
     3: '온양역/아산터미널'
   };
 
-  // 3. 백엔드 데이터와 매칭할 다양한 이름들 (하드코딩 시 불필요하나 구조 유지)
+  // 3. 백엔드 데이터와 매칭할 다양한 이름들 (별칭 리스트)
   final Map<String, List<String>> _stationAliases = {
     '천안 아산역': ['천안아산역', '아산역', 'KTX'],
     '천안역': ['천안역', '서부역', '천안역(서부)', '천안역(동부)', '천안서부역'],
@@ -62,183 +63,159 @@ class _TimetableScreenState extends State<TimetableScreen> {
       _errorMessage = "";
     });
 
-    _currentTimetableData = _getHardcodedTimetable(targetName);
-
-    setState(() {
-      _isTimetableLoading = false;
-    });
+    _fetchTimetableData(targetName);
   }
 
   Future<void> _fetchTimetableData(String targetName) async {
-    // API 호출 로직 제거
+    try {
+      final results = await Future.wait([
+        // 1. 하행 (캠퍼스 -> 역)
+        DioClient.instance.get(
+          '/api/shuttle/schedules',
+          queryParameters: {
+            'dayType': '평일',
+            'departure': '아산캠퍼스',
+            'arrival': targetName,
+            'limit': '0'
+          },
+        ),
+        // 2. 상행 (역 -> 캠퍼스)
+        DioClient.instance.get(
+          '/api/shuttle/schedules',
+          queryParameters: {
+            'dayType': '평일',
+            'departure': targetName,
+            'arrival': '아산캠퍼스',
+            'limit': '0'
+          },
+        ),
+      ]);
+
+      if (!mounted) return;
+
+      final downBoundData = results[0].data;
+      final upBoundData = results[1].data;
+
+      final processedData =
+          _mergeAndProcessApiData(downBoundData, upBoundData, targetName);
+
+      setState(() {
+        _currentTimetableData = processedData;
+        _isTimetableLoading = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        if (e is DioException) {
+          _errorMessage = "서버 오류: ${e.response?.statusCode ?? '연결 실패'}";
+        } else {
+          _errorMessage = "오류 발생: ${e.toString()}";
+        }
+        _isTimetableLoading = false;
+      });
+    }
   }
 
-  // ⭐️ [핵심 수정] 하드코딩된 시간표 데이터 함수
-  Map<String, dynamic> _getHardcodedTimetable(String targetName) {
-    List<String> headers = ["순", "캠퍼스 출발", "$targetName 도착", "캠퍼스 도착", "비고"];
-    List<List<String>> rows = [];
+  // 🚀 [핵심 수정] 인덱스 기반 병합 (Sequential Merge) + X 자동 삽입 로직
+  Map<String, dynamic> _mergeAndProcessApiData(
+      Map<String, dynamic> downBoundRaw,
+      Map<String, dynamic> upBoundRaw,
+      String targetName) {
+    
+    List<dynamic> downSchedules = downBoundRaw['data'] ?? [];
+    List<dynamic> upSchedules = upBoundRaw['data'] ?? [];
+
     String title = _tabNames[_selectedTabIndex];
+    List<String> notes =
+        List<String>.from(downBoundRaw['viaStopsSummary'] ?? []);
 
-    // --- 1. 아산(KTX)역 시간표 (스크린샷 38행 데이터 적용) ---
-    if (targetName == '천안 아산역') {
-      title = '아산(KTX)역';
-      // 이 데이터는 이미 하드코딩되어 있습니다. (38행)
-      rows = [
-        ['1', '08:10', '08:25', '08:40', ''],
-        ['2', 'X', 'X', '08:50', '금(X)'],
-        ['3', 'X', 'X', '09:05', '금(X)'],
-        ['4', 'X', 'X', '09:15', '금(X)'],
-        ['5', 'X', 'X', '09:20', '금(X)'],
-        ['6', 'X', 'X', '09:25', '금(X)'],
-        ['7', '09:40', '09:55', '10:10', ''],
-        ['8', '09:50', '10:05', '10:20', '금(X)'],
-        ['9', '10:00', '10:15', '10:30', '금(X)'],
-        ['10', '10:30', '10:45', '11:00', '금(X)'],
-        ['11', '10:40', '10:55', '11:10', ''],
-        ['12', '10:50', '11:05', '11:20', '금(X)'],
-        ['13', '11:00', '11:15', '11:30', '금(X)'],
-        ['14', '11:30', '11:45', '12:00', '금(X)'],
-        ['15', '11:40', '11:55', '12:10', ''],
-        ['16', '11:50', '12:05', '12:20', '금(X)'],
-        ['17', '12:30', '12:45', '13:00', '금(X)'],
-        ['18', '12:40', '12:55', '13:10', ''],
-        ['19', '12:50', '13:05', '13:20', '금(X)'],
-        ['20', '13:30', '13:45', '14:00', '금(X)'],
-        ['21', '13:40', '13:55', '14:10', ''],
-        ['22', '14:30', '14:45', '15:00', '금(X)'],
-        ['23', '14:40', '14:55', '15:10', ''],
-        ['24', '15:30', '15:45', '16:00', '금(X)'],
-        ['25', '15:40', '15:55', '16:10', ''],
-        ['26', '15:50', '16:05', '16:20', '금(X)'],
-        ['27', '16:30', '16:45', '17:00', '금(X)'],
-        ['28', '16:40', '16:55', '17:10', ''],
-        ['29', '16:50', '17:05', '17:20', '금(X)'],
-        ['30', '17:30', '17:45', '18:00', '금(X)'],
-        ['31', '17:40', '17:55', '18:10', ''],
-        ['32', '17:50', '18:05', '18:20', '금(X)'],
-        ['33', '18:30', '18:45', '19:00', ''],
-        ['34', '18:40', '18:55', '19:10', '금(X)'],
-        ['35', '18:50', '19:05', '19:20', '금(X)'],
-        ['36', '19:30', '19:45', '20:00', ''],
-        ['37', '20:30', '20:45', '21:00', ''],
-        ['38', '21:30', '21:45', '22:00', ''],
-      ];
+    // UI 이미지에 맞춘 5개 컬럼 헤더
+    List<String> headers = ["순", "캠퍼스 출발", "$targetName 도착", "캠퍼스 도착", "비고"];
 
-    // --- 2. 천안역 시간표 (스크린샷 40행 데이터 적용) ---
-    } else if (targetName == '천안역') {
-      title = '천안역';
-      // '스크린샷 2025-12-06 144920.png' 기반
-      // 천안역 시간은 '천안역' 출발시간 사용, 경유지 제거
-      rows = [
-        ['1', '7:40', '8:10', '8:40', ''],
-        ['2', '8:20', '8:50', '8:50', '금(X)'],
-        ['3', 'X', '8:25', '9:00', '금(X)'],
-        ['4', 'X', '8:35', '9:05', '금(X)'],
-        ['5', 'X', '8:40', '9:10', '금(X)'],
-        ['6', 'X', '8:50', '9:15', '금(X)'],
-        ['7', 'X', '8:55', '9:20', ''],
-        ['8', 'X', '9:00', '9:25', ''],
-        ['9', 'X', '9:00', '9:30', '금(X)'],
-        ['10', '9:30', '9:55', '10:20', '금(X)'],
-        ['11', '9:35', '10:00', '10:25', '금(X)'],
-        ['12', '10:30', '10:55', '11:20', ''],
-        ['13', '10:35', '11:00', '11:25', '금(X)'],
-        ['14', '10:40', '11:05', '11:30', '금(X)'],
-        ['15', '11:30', '11:55', '12:20', ''],
-        ['16', '11:35', '12:00', '12:25', '금(X)'],
-        ['17', '11:40', '12:05', '12:30', '금(X)'],
-        ['18', '12:30', '12:55', '13:20', ''],
-        ['19', '12:35', '13:00', '13:25', '금(X)'],
-        ['20', '13:30', '13:55', '14:20', '금(X)'],
-        ['21', '13:35', '14:00', '14:25', '금(X)'],
-        ['22', '13:40', '14:05', '14:30', '금(X)'],
-        ['23', '14:20', '14:45', '15:20', ''],
-        ['24', '14:30', '14:55', '15:25', '금(X)'],
-        ['25', '14:40', '15:00', '15:30', '金(X)'],
-        ['26', '15:30', '15:55', '16:20', '金(X)'],
-        ['27', '15:35', '16:00', '16:25', '금(X)'],
-        ['28', '15:40', '16:05', '16:30', '금(X)'],
-        ['29', '16:20', '16:50', '17:20', '금(X)'],
-        ['30', '16:30', '16:55', '17:25', '金(X)'],
-        ['31', '16:40', '17:05', '17:30', '금(X)'],
-        ['32', '17:20', '17:55', '18:20', ''],
-        ['33', '17:30', '18:00', '18:25', '금(X)'],
-        ['34', '17:40', '18:05', '18:30', '금(X)'],
-        ['35', '18:30', '18:55', '19:20', ''],
-        ['36', '18:35', '19:00', '19:25', '금(X)'],
-        ['37', '18:40', '19:05', '19:30', ''],
-        ['38', '19:30', '19:55', '20:20', ''],
-        ['39', '20:30', '20:55', '21:30', ''],
-        ['40', '21:30', '21:55', '22:20', ''],
-      ];
+    List<List<String>> rows = [];
+    List<int> highlightedRows = [];
 
-    // --- 3. 천안 터미널 시간표 (스크린샷 40행 데이터 적용) ---
-    } else if (targetName == '천안 터미널') {
-      title = '천안 터미널';
-      // '스크린샷 2025-12-06 144955.png' 기반
-      // 터미널 시간은 '터미널' 열의 시간 사용 (X 및 소요시간 포함)
-      rows = [
-        ['1', '7:30', '8:05', '8:40', '금(X)'],
-        ['2', 'X', '8:15', '8:50', '금(X)'],
-        ['3', 'X', '8:25', '9:00', '금(X)'],
-        ['4', 'X', '8:30', '9:05', '금(X)'],
-        ['5', 'X', '8:35', '9:10', '금(X)'],
-        ['6', 'X', '8:40', '9:15', '금(X)'],
-        ['7', 'X', '8:45', '9:20', '금(X)'],
-        ['8', 'X', '8:50', '9:25', '금(X)'],
-        ['9', 'X', '8:50', '9:25', '금(X)'],
-        ['10', '9:30', '10:00', '10:30', '금(X)'],
-        ['11', '9:40', '10:10', '10:40', '금(X)'],
-        ['12', '10:20', '10:50', '11:20', '금(X)'],
-        ['13', '10:30', '11:00', '11:30', '금(X)'],
-        ['14', '10:40', '11:10', '11:40', '금(X)'],
-        ['15', '11:20', '11:50', '12:20', '금(X)'],
-        ['16', '11:30', '12:00', '12:30', '금(X)'],
-        ['17', '11:40', '12:10', '12:40', '금(X)'],
-        ['18', '12:20', '12:50', '13:20', '금(X)'],
-        ['19', '12:30', '13:00', '13:30', '금(X)'],
-        ['20', '13:30', '13:50', '14:20', '금(X)'],
-        ['21', '13:20', '13:50', '14:20', '금(X)'],
-        ['22', '13:40', '14:10', '14:40', '금(X)'],
-        ['23', '14:20', '14:50', '15:20', '금(X)'],
-        ['24', '14:30', '15:00', '15:30', '금(X)'],
-        ['25', '14:40', '15:10', '15:40', '금(X)'],
-        ['26', '15:20', '15:50', '16:20', '금(X)'],
-        ['27', '15:30', '16:00', '16:30', '금(X)'],
-        ['28', '15:40', '16:10', '16:40', '금(X)'],
-        ['29', '16:20', '16:50', '17:20', '금(X)'],
-        ['30', '16:30', '17:00', '17:30', '금(X)'],
-        ['31', '16:40', '17:10', '17:40', '금(X)'],
-        ['32', '17:20', '17:50', '18:20', '금(X)'],
-        ['33', '17:30', '18:00', '18:30', '금(X)'],
-        ['34', '17:40', '18:10', '18:40', '금(X)'],
-        ['35', '18:30', '19:00', '19:30', '금(X)'],
-        ['36', '18:40', '19:10', '19:40', '금(X)'],
-        ['37', '18:50', '19:20', '19:50', '금(X)'],
-        ['38', '19:30', '20:00', '20:30', '금(X)'],
-        ['39', '20:30', '21:00', '21:30', '금(X)'],
-        ['40', '21:30', '22:00', '22:30', '금(X)'],
-      ];
+    // 가장 긴 노선의 길이를 기준으로 반복 (균형 맞추기)
+    int maxCount = max(downSchedules.length, upSchedules.length);
 
-    // --- 4. 온양 터미널/역 시간표 (스크린샷 7행 데이터 적용) ---
-    } else if (targetName == '온양역/아산터미널') {
-      title = '온양 터미널/역';
-      // '스크린샷 2025-12-06 145041.png' 기반
-      // 온양역/아산터미널 도착 시간은 '온양온천역' 시간 사용
-      rows = [
-        ['1', 'X', '8:10', '8:40', ''],
-        ['2', 'X', '8:45', '9:15', '금(X)'],
-        ['3', 'X', '8:50', '9:20', ''],
-        ['4', '10:25', '10:55', '11:20', ''],
-        ['5', '15:30', '16:00', '16:25', ''],
-        ['6', '17:30', '18:00', '18:25', '금(X)'],
-        ['7', '18:30', '19:00', '19:05', ''],
-      ];
+    // 1. 검색 키워드 리스트 준비
+    List<String> rawKeywords = _stationAliases[targetName] ?? [targetName];
+    List<String> searchKeywords =
+        rawKeywords.map((k) => k.replaceAll(' ', '')).toList();
+
+    for (int i = 0; i < maxCount; i++) {
+      // 해당 인덱스에 데이터가 없으면 null, 있으면 객체
+      var downItem = (i < downSchedules.length) ? downSchedules[i] : null;
+      var upItem = (i < upSchedules.length) ? upSchedules[i] : null;
+
+      // --- 1. 캠퍼스 출발 (하행) ---
+      String campusDeparture =
+          downItem != null ? (downItem['departureTime'] ?? '---') : '---';
+
+      // --- 2. 역/터미널 도착 (하행) ---
+      String stationArrival = '---';
+      if (downItem != null) {
+        String finalDest = (downItem['arrival'] ?? '').toString().replaceAll(' ', '');
+        String arrivalTime = downItem['arrivalTime'] ?? '---';
+        bool isFound = false;
+
+        // 2-1. 최종 도착지 또는 경유지 시간 검색 (가장 적절한 도착 시간 찾기)
+        List<dynamic> viaStops = downItem['viaStops'] ?? [];
+        for (var stop in viaStops) {
+            String stopName = (stop['name'] ?? '').toString().replaceAll(' ', '');
+            for (String keyword in searchKeywords) {
+              if (stopName.contains(keyword) || keyword.contains(stopName)) {
+                if (stop['time'] != null && stop['time'] != "X") {
+                  stationArrival = stop['time']; // 경유지 시간 사용
+                  isFound = true;
+                  break;
+                }
+              }
+            }
+            if (isFound) break;
+        }
+        
+        // 2-2. 경유지에서 못 찾았다면, 최종 도착 시간 사용 (X 포함)
+        if (!isFound) {
+            stationArrival = arrivalTime; 
+        }
+      }
+
+      // --- 3. 캠퍼스 도착 (상행) ---
+      // 상행 데이터가 없으면 '---'로 균형을 맞춥니다.
+      String campusArrival =
+          upItem != null ? (upItem['arrivalTime'] ?? '---') : '---';
+
+      // --- 4. 비고 (하행/상행 노트를 합칩니다) ---
+      String note = "";
+      if (downItem != null) {
+          note = downItem['note'] ?? "";
+          if (downItem['fridayOperates'] == false) note = "$note 금(X)".trim();
+      }
+      if (upItem != null) {
+          // 상행 노트 추가 (중복 방지를 위해 간단히)
+          if (note.isEmpty) {
+              note = upItem['note'] ?? "";
+          }
+          if (upItem['fridayOperates'] == false && !note.contains("금(X)")) {
+              note = "$note 금(X)".trim();
+          }
+      }
+      if (note.isEmpty) note = '---'; // 노트도 없으면 --- 처리
+
+      // 최종 행 데이터 추가
+      rows.add([
+        (i + 1).toString(),
+        campusDeparture,
+        stationArrival,
+        campusArrival,
+        note
+      ]);
     }
 
     return {
       "title": title,
-      "notes": ['* 백엔드 API 대신 스크린샷 데이터를 기반으로 하드코딩되었습니다.'],
+      "notes": notes,
       "headers": headers,
       "rows": rows,
       "highlightedRows": []

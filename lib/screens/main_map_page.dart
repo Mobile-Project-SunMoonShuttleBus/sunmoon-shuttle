@@ -1,14 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kDebugMode;
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
-import '../api/dio_client.dart';
-import '../api/notice_api.dart';
-import '../models/shuttle_notice_models.dart';
-import 'notice/shuttle_notice_list_screen.dart'; // 셔틀 공지 화면
-import 'notice/shuttle_notice_detail_screen.dart'; // 셔틀 공지 상세 화면
-import 'notice/bus_notices_screen.dart'; // 셔틀버스 공지 화면 (새로 추가)
+import '../api/dio_client.dart'; 
 
 class MainMapPage extends StatefulWidget {
   const MainMapPage({super.key});
@@ -24,7 +18,7 @@ class _MainMapPageState extends State<MainMapPage> {
   // ⭐️ [Mocking Logic] 테스트 시 true, 실제 사용 시 false
   static const bool IS_MOCKING_LOCATION = true; 
   // ⭐️ [Mocking Point] 천안역 근처 좌표로 설정 (학교 외부)
-  static const NLatLng MOCK_START_POINT = NLatLng(36.798628, 127.074679); 
+  static const NLatLng MOCK_START_POINT = NLatLng(36.809727, 127.145230); 
 
   // 위치 및 경로 관련
   StreamSubscription<Position>? _positionStreamSubscription;
@@ -49,8 +43,8 @@ class _MainMapPageState extends State<MainMapPage> {
   static const List<NLatLng> EXTERNAL_STOPS = [
     NLatLng(36.794978, 127.103806), // 아산(KTX)역 [Index 0]
     NLatLng(36.809727, 127.145230), // 천안역 [Index 1]
-    NLatLng(36.8220, 127.1810),     // 천안터미널 [Index 2]
-    NLatLng(36.7860, 127.0020),     // 온양터미널/역 [Index 3]
+    NLatLng(36.8220, 127.1810),    // 천안터미널 [Index 2]
+    NLatLng(36.7860, 127.0020),    // 온양터미널/역 [Index 3]
   ];
 
   final Set<NMarker> _markers = {}; 
@@ -72,12 +66,6 @@ class _MainMapPageState extends State<MainMapPage> {
 
   static const double _WALKING_SPEED = 80; // 분당 80m
 
-  // 셔틀 공지 관련
-  final NoticeApi _noticeApi = NoticeApi.I;
-  ShuttleNoticeSummary? _latestNotice;
-  bool _isLoadingNotice = false;
-
-  // 초기 카메라 (학교 승강장 근처)
   static const NCameraPosition _initialCameraPosition = NCameraPosition(
     target: SCHOOL_SHUTTLE_STOP,
     zoom: 15.5,
@@ -131,43 +119,6 @@ class _MainMapPageState extends State<MainMapPage> {
     
     _fetchBusData();
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _fetchBusData());
-    
-    // 최신 셔틀 공지 로드
-    _loadLatestNotice();
-  }
-
-  // 최신 셔틀 공지 1개 로드
-  Future<void> _loadLatestNotice() async {
-    if (_isLoadingNotice) return;
-    
-    setState(() {
-      _isLoadingNotice = true;
-    });
-
-    try {
-      final notices = await _noticeApi.fetchShuttleNotices();
-      if (mounted && notices.isNotEmpty) {
-        setState(() {
-          _latestNotice = notices.first; // 최신 공지 (첫 번째)
-          _isLoadingNotice = false;
-        });
-      } else {
-        setState(() {
-          _latestNotice = null;
-          _isLoadingNotice = false;
-        });
-      }
-    } catch (e) {
-      if (kDebugMode) {
-        print('최신 공지 로드 실패: $e');
-      }
-      if (mounted) {
-        setState(() {
-          _latestNotice = null;
-          _isLoadingNotice = false;
-        });
-      }
-    }
   }
 
   @override
@@ -443,23 +394,12 @@ class _MainMapPageState extends State<MainMapPage> {
           caption: const NOverlayCaption(text: '학교 셔틀장'),
         )
       );
-      
-      // ⭐️ 3-C. 현재 위치 마커 추가 (새로 추가)
-      if (_currentUserPosition != null) {
-          _markers.add(
-            NMarker(
-              id: 'current_user_pos',
-              position: _currentUserPosition!,
-              caption: const NOverlayCaption(text: '현재 위치'),
-            )
-          );
-      }
 
-      // 3-D. 현재 안내 중인 최종 목적지 마커를 추가 (강조)
+      // 3-C. 현재 안내 중인 최종 목적지 마커를 추가 (강조)
       String destinationName = _isUserInsideSchool() 
-                                ? '학교 셔틀장 (목적지)' 
-                                : _stationNames[_selectedStationIndex] + ' (선택된 승차장)';
-                                  
+                            ? '학교 셔틀장 (목적지)' 
+                            : _stationNames[_selectedStationIndex] + ' (선택된 승차장)';
+                              
       _markers.add(
         NMarker(
           id: 'destination_active', 
@@ -502,23 +442,23 @@ class _MainMapPageState extends State<MainMapPage> {
         final String nextDepTime = _getStationDepartureTime(stationNameKey);
 
         if (nextDepTime == "운행 종료" || nextDepTime == "시간표 없음") {
-            formattedTime = "운행 종료";
-            diffMinutes = 0;
+           formattedTime = "운행 종료";
+           diffMinutes = 0;
         } else {
-            final parts = nextDepTime.split(':');
-            final hour = int.parse(parts[0]);
-            final minute = int.parse(parts[1]);
-            
-            DateTime nextDeparture = DateTime(now.year, now.month, now.day, hour, minute);
-            
-            if (nextDeparture.isBefore(now.subtract(const Duration(minutes: 1)))) {
-                // 이미 지난 시간이라면 (운행 종료 또는 다음 날 첫차)
-                formattedTime = nextDepTime; 
-                diffMinutes = 0; 
-            } else {
-                diffMinutes = nextDeparture.difference(now).inMinutes.ceil();
-                formattedTime = nextDepTime;
-            }
+           final parts = nextDepTime.split(':');
+           final hour = int.parse(parts[0]);
+           final minute = int.parse(parts[1]);
+           
+           DateTime nextDeparture = DateTime(now.year, now.month, now.day, hour, minute);
+           
+           if (nextDeparture.isBefore(now.subtract(const Duration(minutes: 1)))) {
+               // 이미 지난 시간이라면 (운행 종료 또는 다음 날 첫차)
+               formattedTime = nextDepTime; 
+               diffMinutes = 0; 
+           } else {
+               diffMinutes = nextDeparture.difference(now).inMinutes.ceil();
+               formattedTime = nextDepTime;
+           }
         }
       }
       
@@ -562,8 +502,9 @@ class _MainMapPageState extends State<MainMapPage> {
 
   @override
   Widget build(BuildContext context) {
-    // ⭐️ UI 문구 결정 로직 (이 로직은 정확히 작동함)
+    // ⭐️ UI 문구 결정 로직
     final String selectedStationName = _stationNames[_selectedStationIndex];
+    // 학교 외부에 있으면 '아산캠퍼스행', 내부에 있으면 선택한 역 행
     final String directionText = _isUserInsideSchool() ? 
                                   '${selectedStationName}행' : 
                                   '아산캠퍼스행';
@@ -589,19 +530,14 @@ class _MainMapPageState extends State<MainMapPage> {
                     _mapController = controller;
                     
                     // ⭐️ MapReady 시 카메라를 현재 위치 또는 선택된 역으로 이동
-                    if (_currentUserPosition != null) {
-                        final targetStop = !_isUserInsideSchool() ? EXTERNAL_STOPS[_selectedStationIndex] : SCHOOL_SHUTTLE_STOP;
+                    if (_currentUserPosition != null && !_isUserInsideSchool()) {
+                        final targetStop = EXTERNAL_STOPS[_selectedStationIndex];
                         controller.updateCamera(
                             NCameraUpdate.scrollAndZoomTo(
                                 target: targetStop,
                                 zoom: 15.5, 
                             )
                         );
-                    }
-                    
-                    // 맵 준비 완료 후, 경로 업데이트를 강제 실행
-                    if (_currentUserPosition != null) {
-                        _updatePathToStop();
                     }
                     
                     _fetchBusData();
@@ -621,19 +557,7 @@ class _MainMapPageState extends State<MainMapPage> {
                   ),
                 ),
               
-              // 상단 정보 카드 (directionText)
               Positioned(top: 16, right: 16, left: 16, child: _buildTopInfoCard(directionText)),
-              
-              // 최신 공지 카드 (상단 정보 카드 아래 - top: 90)
-              if (_latestNotice != null)
-                Positioned(
-                  top: 90,
-                  right: 16,
-                  left: 16,
-                  child: _buildNoticeCard(),
-                ),
-              
-              // 하단 정보 카드 (도보 정보)
               Positioned(bottom: 20, left: 20, right: 20, child: _buildBottomInfoCard()),
               if (_isLoading) const Center(child: CircularProgressIndicator()),
             ],
@@ -655,18 +579,7 @@ class _MainMapPageState extends State<MainMapPage> {
             const SizedBox(width: 10),
             const Text('등하교 셔틀', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const Spacer(),
-            IconButton(
-              icon: const Icon(Icons.announcement, size: 28, color: Colors.grey),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) => const BusNoticesScreen(),
-                  ),
-                );
-              },
-              tooltip: '셔틀 공지',
-            ),
+            const Icon(Icons.notifications_none, size: 28, color: Colors.grey),
           ],
         ),
       ),
@@ -732,73 +645,6 @@ class _MainMapPageState extends State<MainMapPage> {
     );
   }
 
-  // 최신 공지 카드
-  Widget _buildNoticeCard() {
-    if (_latestNotice == null) return const SizedBox.shrink();
-
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => ShuttleNoticeDetailScreen(
-              noticeId: _latestNotice!.id,
-              initialTitle: _latestNotice!.title,
-            ),
-          ),
-        );
-      },
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
-        decoration: BoxDecoration(
-          color: Colors.orange[50],
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: Colors.orange[200]!, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.05),
-              blurRadius: 4,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Row(
-          children: [
-            Icon(Icons.announcement, color: Colors.orange[700], size: 20),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    _latestNotice!.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                      color: Colors.black87,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    _latestNotice!.formattedDate,
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: Colors.grey[600],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Icon(Icons.chevron_right, color: Colors.grey[400], size: 20),
-          ],
-        ),
-      ),
-    );
-  }
-
-  // 하단 카드: 승강장까지 도보 정보
   Widget _buildBottomInfoCard() {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
