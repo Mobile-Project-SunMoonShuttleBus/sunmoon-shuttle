@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '../../providers/settings_provider.dart';
-import '../../../core/localization/app_localizations.dart';
+import './../providers/settings_provider.dart';
+import './../core/localization/app_localizations.dart';
 import '../repositories/notice_repository.dart';
 import '../models/notice_model.dart';
 import 'notice_detail_screen.dart';

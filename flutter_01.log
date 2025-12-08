@@ -1,0 +1,103 @@
+Flutter crash report.
+Please report a bug at https://github.com/flutter/flutter/issues.
+
+## command
+
+flutter debug_adapter
+
+## exception
+
+FileSystemException: FileSystemException: writeFrom failed, path = '' (OS Error: 파이프가 닫히는 중입니다.
+, errno = 232)
+
+```
+#0      _checkForErrorResponse (dart:io/common.dart:58:9)
+#1      _RandomAccessFile.writeFrom.<anonymous closure> (dart:io/file_impl.dart:1001:7)
+#2      _rootRunUnary (dart:async/zone.dart:1538:47)
+#3      _CustomZone.runUnary (dart:async/zone.dart:1429:19)
+<asynchronous suspension>
+#4      _FileStreamConsumer.addStream.<anonymous closure>.<anonymous closure>.<anonymous closure> (dart:io/file_impl.dart:237:27)
+<asynchronous suspension>
+```
+
+## flutter doctor
+
+```
+[!] Flutter (Channel stable, 3.35.2, on Windows, locale ko-KR) [537ms]
+    • Flutter version 3.35.2 on channel stable at E:\flutter
+    ! The flutter binary is not on your path. Consider adding E:\flutter\bin to your path.
+    ! The dart binary is not on your path. Consider adding E:\flutter\bin to your path.
+    • Upstream repository https://github.com/flutter/flutter.git
+    • Framework revision 05db968908 (), 2025-08-25 10:21:35 -0700
+    • Engine revision a8bfdfc394
+    • Dart version 3.9.0
+    • DevTools version 2.48.0
+    • Feature flags: enable-web, enable-linux-desktop, enable-macos-desktop, enable-windows-desktop, enable-android, enable-ios, cli-animations, enable-lldb-debugging
+    • If those were intentional, you can disregard the above warnings; however it is recommended to use "git" directly to perform update checks and upgrades.
+
+[✗] Windows Version (Unable to determine Windows version (command `ver` returned Windows)) [271ms]
+
+[!] Android toolchain - develop for Android devices (Android SDK version 36.1.0-rc1) [508ms]
+    • Android SDK at E:\android_2
+    • Emulator version unknown
+    • Platform android-36, build-tools 36.1.0-rc1
+    • Java binary at: C:\Program Files\Java\jdk-17.0.2\bin\java
+      This JDK is specified by the JAVA_HOME environment variable.
+      To manually set the JDK path, use: `flutter config --jdk-dir="path/to/jdk"`.
+    ✗ Could not determine java version
+
+[✓] Chrome - develop for the web [261ms]
+    • Chrome at C:\Program Files\Google\Chrome\Application\chrome.exe
+
+[✗] Visual Studio - develop Windows apps [258ms]
+    ✗ Visual Studio not installed; this is necessary to develop Windows apps.
+      Download at https://visualstudio.microsoft.com/downloads/.
+      Please install the "Desktop development with C++" workload, including all of its default components
+
+[!] Android Studio (version 2025.1.2) [17ms]
+    • Android Studio at E:\android
+    • Flutter plugin can be installed from:
+      🔨 https://plugins.jetbrains.com/plugin/9212-flutter
+    • Dart plugin can be installed from:
+      🔨 https://plugins.jetbrains.com/plugin/6351-dart
+    ✗ Unable to determine bundled Java version.
+    • Try updating or re-installing Android Studio.
+
+[✓] IntelliJ IDEA Community Edition (version 2021.3) [13ms]
+    • IntelliJ at C:\Program Files\JetBrains\IntelliJ IDEA Community Edition 2021.3.2
+    • Flutter plugin can be installed from:
+      🔨 https://plugins.jetbrains.com/plugin/9212-flutter
+    • Dart plugin can be installed from:
+      🔨 https://plugins.jetbrains.com/plugin/6351-dart
+
+[✓] VS Code (version 1.106.3) [13ms]
+    • VS Code at C:\Users\김세민\AppData\Local\Programs\Microsoft VS Code
+    • Flutter extension version 3.124.0
+
+[☠] Connected device (the doctor check crashed)
+    ✗ Due to an error, the doctor check did not complete. If the error message below is not helpful, please let us know about this issue at https://github.com/flutter/flutter/issues.
+    ✗ Error: Unable to run "adb", check your Android SDK installation and ANDROID_HOME environment variable: E:\android_2\platform-tools\adb.exe
+      Error details: Process exited abnormally with exit code -1073741502:
+
+    • #0      throwToolExit (package:flutter_tools/src/base/common.dart:34:3)
+      #1      AndroidDevices.pollingGetDevices (package:flutter_tools/src/android/android_device_discovery.dart:74:7)
+      <asynchronous suspension>
+      #2      PollingDeviceDiscovery._populateDevices (package:flutter_tools/src/device.dart:531:36)
+      <asynchronous suspension>
+      #3      Future.wait.<anonymous closure> (dart:async/future.dart:525:21)
+      <asynchronous suspension>
+      #4      DeviceManager.refreshAllDevices (package:flutter_tools/src/device.dart:201:40)
+      <asynchronous suspension>
+      #5      DeviceValidator.validateImpl (package:flutter_tools/src/doctor.dart:781:34)
+      <asynchronous suspension>
+      #6      DoctorValidator.validate (package:flutter_tools/src/doctor_validator.dart:58:37)
+      <asynchronous suspension>
+      #7      Future.any.onValue (dart:async/future.dart:616:5)
+      <asynchronous suspension>
+
+
+[✓] Network resources [857ms]
+    • All expected network resources are available.
+
+! Doctor found issues in 6 categories.
+```
