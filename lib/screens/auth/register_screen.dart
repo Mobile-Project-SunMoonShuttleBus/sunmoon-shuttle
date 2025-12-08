@@ -1,8 +1,8 @@
 // lib/storage/register_screen.dart
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
-import '/../providers/register_provider.dart'; 
-import '/../core/utils/validators.dart';       
+import '../../providers/register_provider.dart'; 
+import '../../core/utils/validators.dart';       
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});

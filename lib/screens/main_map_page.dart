@@ -17,8 +17,8 @@ class _MainMapPageState extends State<MainMapPage> {
   
   // ⭐️ [Mocking Logic] 테스트 시 true, 실제 사용 시 false
   static const bool IS_MOCKING_LOCATION = true; 
-  // ⭐️ [Mocking Point] 아산역 근처 좌표로 설정 (학교 외부)
-  static const NLatLng MOCK_START_POINT = NLatLng(36.809245, 127.143216); 
+  // ⭐️ [Mocking Point] 천안역 근처 좌표로 설정 (학교 외부)
+  static const NLatLng MOCK_START_POINT = NLatLng(36.798628, 127.074679); 
 
   // 위치 및 경로 관련
   StreamSubscription<Position>? _positionStreamSubscription;
@@ -70,10 +70,51 @@ class _MainMapPageState extends State<MainMapPage> {
     target: SCHOOL_SHUTTLE_STOP,
     zoom: 15.5,
   );
+  
+  // ⭐️ [하드코딩된 시간표] 역/터미널 -> 캠퍼스 출발 시간표 (학교 외부용)
+  static const Map<String, List<String>> _STATION_DEP_TIMES = {
+    '아산(KTX)역': [
+      '08:25', '08:45', '08:55', '09:00', '09:10', '09:55', '10:10', '11:10', 
+      '11:55', '12:55', '14:00', '15:00', '16:00', '17:00', '18:00', '18:55', 
+      '20:05', '21:00', '21:30'
+    ],
+    // ⭐️ 15시 31분 이후의 다음 차로 15:50을 반영 (수정된 데이터)
+    '천안역': [
+      '08:15', '08:40', '08:50', '09:00', '10:00', '10:50', '11:50', '13:10', 
+      '13:20', '14:20', '15:30', 
+      '15:50', // ⬅️ 다음 차로 15:50을 반영
+      '17:00', '18:05', '18:30', '19:05', '19:25', 
+      '19:55', '20:55', '21:45'
+    ],
+    '천안터미널': [
+      '08:15', '08:25', '08:35', '08:45', '08:55', '09:30', '10:40', '11:40', 
+      '13:10', '14:00', '14:10', '15:10', '15:20', '16:10', '17:20', '18:20', 
+      '19:20', '20:10', '21:10', '22:00'
+    ],
+    '온양터미널/역': [
+      '08:10', '08:40', '10:55', '16:00', '19:00'
+    ],
+  };
 
   @override
   void initState() {
     super.initState();
+    
+    // ⭐️ [추가] 초기 로딩 시 현재 위치와 가장 가까운 역을 선택
+    if (IS_MOCKING_LOCATION) {
+        double minDistance = double.infinity;
+        int bestIndex = 0;
+        
+        for (int i = 0; i < EXTERNAL_STOPS.length; i++) {
+            final dist = _calculateDistance(MOCK_START_POINT, EXTERNAL_STOPS[i]);
+            if (dist < minDistance) {
+                minDistance = dist;
+                bestIndex = i;
+            }
+        }
+        _selectedStationIndex = bestIndex;
+    }
+    
     _checkPermissionAndListenLocation();
     
     _fetchBusData();
@@ -99,6 +140,35 @@ class _MainMapPageState extends State<MainMapPage> {
     
     final distance = _calculateDistance(_currentUserPosition!, SCHOOL_SHUTTLE_STOP);
     return distance < SCHOOL_BOUNDARY_RADIUS_M;
+  }
+  
+  // ⭐️ 하드코딩된 시간표에서 현재 시간 이후 가장 빠른 출발 시간 찾기
+  String _getStationDepartureTime(String stationName) {
+    final List<String>? schedule = _STATION_DEP_TIMES[stationName];
+    if (schedule == null || schedule.isEmpty) {
+      return "시간표 없음";
+    }
+
+    final DateTime now = DateTime.now();
+    
+    for (String timeString in schedule) {
+      try {
+        final parts = timeString.split(':');
+        final hour = int.parse(parts[0]);
+        final minute = int.parse(parts[1]);
+        
+        DateTime departureTime = DateTime(now.year, now.month, now.day, hour, minute);
+        
+        if (departureTime.isAfter(now.subtract(const Duration(minutes: 1)))) {
+           return timeString; // 현재 시각 이후의 가장 빠른 시간
+        }
+        
+      } catch (e) {
+        continue;
+      }
+    }
+    
+    return schedule.first;
   }
 
   int _findBestEntryNode(NLatLng currentPos) {
@@ -187,7 +257,6 @@ class _MainMapPageState extends State<MainMapPage> {
     if (insideSchool) {
       // MODE 1: 학교 내부 경로 안내 
       
-      // 학교 내부일 경우 '너무 멀다' 상태 초기화
       if (_isTooFar) {
           setState(() => _isTooFar = false);
       }
@@ -195,9 +264,7 @@ class _MainMapPageState extends State<MainMapPage> {
       finalDestination = SCHOOL_SHUTTLE_STOP;
       
       int entryIndex = _findBestEntryNode(_currentUserPosition!);
-      // ... (Nearest Neighbor Logic continues)
-      // (내부 경로 탐색 로직은 생략하고 바로 finalDestination으로 연결)
-
+      
       if (entryIndex != -1) {
           if (_calculateDistance(_currentUserPosition!, finalDestination) < _calculateDistance(_currentUserPosition!, ROUTE_TO_STOP[entryIndex])) {
               pathCoords.add(finalDestination);
@@ -254,12 +321,12 @@ class _MainMapPageState extends State<MainMapPage> {
         // 500m 초과 시: 지도 표시 금지, 메시지 표시 상태로 전환
         if (!_isTooFar) {
           setState(() {
-             _isTooFar = true;
-             // 지도 오버레이 클리어
-             _mapController!.deleteOverlay(const NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'path_to_stop'));
-             _mapController!.clearOverlays(type: NOverlayType.marker);
-             _walkingDistance = "- m"; 
-             _walkingTime = "- 분";
+              _isTooFar = true;
+              // 지도 오버레이 클리어
+              _mapController!.deleteOverlay(const NOverlayInfo(type: NOverlayType.polylineOverlay, id: 'path_to_stop'));
+              _mapController!.clearOverlays(type: NOverlayType.marker);
+              _walkingDistance = "- m"; 
+              _walkingTime = "- 분";
           });
         }
         return; // 경로 그리기 함수 호출을 막음
@@ -327,12 +394,23 @@ class _MainMapPageState extends State<MainMapPage> {
           caption: const NOverlayCaption(text: '학교 셔틀장'),
         )
       );
+      
+      // ⭐️ 3-C. 현재 위치 마커 추가 (새로 추가)
+      if (_currentUserPosition != null) {
+          _markers.add(
+            NMarker(
+              id: 'current_user_pos',
+              position: _currentUserPosition!,
+              caption: const NOverlayCaption(text: '현재 위치'),
+            )
+          );
+      }
 
-      // 3-C. 현재 안내 중인 최종 목적지 마커를 추가 (강조)
+      // 3-D. 현재 안내 중인 최종 목적지 마커를 추가 (강조)
       String destinationName = _isUserInsideSchool() 
-                             ? '학교 셔틀장 (목적지)' 
-                             : _stationNames[_selectedStationIndex] + ' (선택된 승차장)';
-                             
+                            ? '학교 셔틀장 (목적지)' 
+                            : _stationNames[_selectedStationIndex] + ' (선택된 승차장)';
+                              
       _markers.add(
         NMarker(
           id: 'destination_active', 
@@ -351,24 +429,49 @@ class _MainMapPageState extends State<MainMapPage> {
     }
   }
 
+  // ⭐️ [수정] 학교 외부일 때 역 출발 시간표를 조회하여 UI 업데이트
   Future<void> _fetchBusData() async {
     try {
       await Future.delayed(const Duration(milliseconds: 300));
       
       final DateTime now = DateTime.now();
-      int nextMinute = (now.minute ~/ 15 + 1) * 15;
-      DateTime nextDeparture = DateTime(now.year, now.month, now.day, now.hour, 0).add(Duration(minutes: nextMinute));
+      String formattedTime;
+      int diffMinutes;
       
-      int diffMinutes = nextDeparture.difference(now).inMinutes;
-      if (diffMinutes < 0) diffMinutes = 0;
-
-      String formattedTime = "${nextDeparture.hour.toString().padLeft(2, '0')}:${nextDeparture.minute.toString().padLeft(2, '0')}";
+      final String stationNameKey = _stationNames[_selectedStationIndex];
       
-      if (_selectedStationIndex == 1) { 
-        nextDeparture = nextDeparture.add(const Duration(minutes: 5));
-        diffMinutes += 5;
+      if (_isUserInsideSchool()) {
+        // ⭐️ 학교 내부 모드: 기존 임시 로직 유지 (캠퍼스 -> 역)
+        int nextMinute = (now.minute ~/ 15 + 1) * 15;
+        DateTime nextDeparture = DateTime(now.year, now.month, now.day, now.hour, 0).add(Duration(minutes: nextMinute));
+        
+        diffMinutes = nextDeparture.difference(now).inMinutes;
         formattedTime = "${nextDeparture.hour.toString().padLeft(2, '0')}:${nextDeparture.minute.toString().padLeft(2, '0')}";
-      } 
+      
+      } else {
+        // ⭐️ 학교 외부 모드: 하드코딩된 역 -> 캠퍼스 시간표 조회
+        final String nextDepTime = _getStationDepartureTime(stationNameKey);
+
+        if (nextDepTime == "운행 종료" || nextDepTime == "시간표 없음") {
+           formattedTime = "운행 종료";
+           diffMinutes = 0;
+        } else {
+           final parts = nextDepTime.split(':');
+           final hour = int.parse(parts[0]);
+           final minute = int.parse(parts[1]);
+           
+           DateTime nextDeparture = DateTime(now.year, now.month, now.day, hour, minute);
+           
+           if (nextDeparture.isBefore(now.subtract(const Duration(minutes: 1)))) {
+               // 이미 지난 시간이라면 (운행 종료 또는 다음 날 첫차)
+               formattedTime = nextDepTime; 
+               diffMinutes = 0; 
+           } else {
+               diffMinutes = nextDeparture.difference(now).inMinutes.ceil();
+               formattedTime = nextDepTime;
+           }
+        }
+      }
       
       if (mounted) {
         setState(() {
@@ -410,6 +513,12 @@ class _MainMapPageState extends State<MainMapPage> {
 
   @override
   Widget build(BuildContext context) {
+    // ⭐️ UI 문구 결정 로직 (이 로직은 정확히 작동함)
+    final String selectedStationName = _stationNames[_selectedStationIndex];
+    final String directionText = _isUserInsideSchool() ? 
+                                  '${selectedStationName}행' : 
+                                  '아산캠퍼스행';
+                                  
     return Column(
       children: [
         _buildHeader(),
@@ -430,15 +539,20 @@ class _MainMapPageState extends State<MainMapPage> {
                   onMapReady: (controller) async {
                     _mapController = controller;
                     
-                    // ⭐️ [변경] 사용자가 학교 밖에 있고, 현재 위치가 설정되었다면 선택된 셔틀장으로 카메라 이동
-                    if (_currentUserPosition != null && !_isUserInsideSchool()) {
-                        final targetStop = EXTERNAL_STOPS[_selectedStationIndex];
+                    // ⭐️ MapReady 시 카메라를 현재 위치 또는 선택된 역으로 이동
+                    if (_currentUserPosition != null) {
+                        final targetStop = !_isUserInsideSchool() ? EXTERNAL_STOPS[_selectedStationIndex] : SCHOOL_SHUTTLE_STOP;
                         controller.updateCamera(
                             NCameraUpdate.scrollAndZoomTo(
                                 target: targetStop,
                                 zoom: 15.5, 
                             )
                         );
+                    }
+                    
+                    // 맵 준비 완료 후, 경로 업데이트를 강제 실행
+                    if (_currentUserPosition != null) {
+                       _updatePathToStop();
                     }
                     
                     _fetchBusData();
@@ -458,7 +572,7 @@ class _MainMapPageState extends State<MainMapPage> {
                   ),
                 ),
               
-              Positioned(top: 16, right: 16, left: 16, child: _buildTopInfoCard()),
+              Positioned(top: 16, right: 16, left: 16, child: _buildTopInfoCard(directionText)),
               Positioned(bottom: 20, left: 20, right: 20, child: _buildBottomInfoCard()),
               if (_isLoading) const Center(child: CircularProgressIndicator()),
             ],
@@ -517,7 +631,7 @@ class _MainMapPageState extends State<MainMapPage> {
     );
   }
 
-  Widget _buildTopInfoCard() {
+  Widget _buildTopInfoCard(String directionText) {
     return Container(
       padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 20),
       decoration: BoxDecoration(
@@ -531,7 +645,7 @@ class _MainMapPageState extends State<MainMapPage> {
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('${_stationNames[_selectedStationIndex]}행', style: const TextStyle(fontSize: 14, color: Colors.grey)),
+              Text(directionText, style: const TextStyle(fontSize: 14, color: Colors.grey)),
               const SizedBox(height: 4),
               Text(_nextDepartureTime, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.black)),
             ],

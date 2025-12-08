@@ -1,7 +1,7 @@
 /// 공지사항 Repository
 /// API 호출을 추상화하고 예외 처리
 import 'package:dio/dio.dart';
-import '../../../api/notice_api.dart';
+import './../api/notice_api.dart';
 import '../models/notice_model.dart';
 
 class NoticeRepository {

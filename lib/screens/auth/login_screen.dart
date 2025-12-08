@@ -2,10 +2,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
-import '/../providers/auth_provider.dart';
-import '/../providers/login_provider.dart'; 
-import '/../providers/register_provider.dart'; // ⭐️ [추가] RegisterProvider 임포트
-import '/../core/utils/validators.dart';
+import '../../providers/auth_provider.dart';
+import '../../providers/login_provider.dart'; 
+import '../../providers/register_provider.dart'; // ⭐️ [추가] RegisterProvider 임포트
+import '../../core/utils/validators.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget { 
