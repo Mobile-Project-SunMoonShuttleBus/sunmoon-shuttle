@@ -7,7 +7,6 @@ import '../models/timetable_models.dart';
 import '../repositories/auth_repository.dart';
 import '../providers/settings_provider.dart';
 import '../core/localization/app_localizations.dart';
-import 'portal_timetable_webview.dart';
 
 /// 학기 시간표 화면 (1번 코드 원본 UI/기능)
 /// - 서버에 저장된 시간표가 있으면 보여줌 (색상 입혀서)
@@ -334,41 +333,29 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
     }
   }
 
-  // 웹뷰 열기 및 로그인 처리
+  // 포털 계정 저장 처리 (WebView 없이 바로 API 호출)
   Future<void> _openPortalWebView() async {
-    final result = await Navigator.push<bool>(
-      context,
-      MaterialPageRoute(builder: (_) => const PortalTimetableWebViewScreen()),
+    // 아이디/패스워드 입력받기
+    final credentials = await _showPortalLoginDialog();
+    if (credentials == null) return; // 사용자가 취소한 경우
+
+    final schoolId = credentials['schoolId'] as String;
+    final schoolPassword = credentials['schoolPassword'] as String;
+
+    // 입력받은 정보로 바로 API 호출하여 DB 저장
+    await _handlePortalLoginSuccess(
+      schoolId: schoolId,
+      schoolPassword: schoolPassword,
     );
-
-    if (result == true) {
-      await _handlePortalLoginSuccess();
-    }
   }
 
-  // 로그인 성공 후 계정 저장 팝업
-  Future<void> _handlePortalLoginSuccess() async {
-    if (!mounted) return;
-    final settings = Provider.of<SettingsProvider>(context, listen: false);
-    final l10n = AppLocalizations(settings.isKorean);
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.portalLoginSuccess), duration: const Duration(seconds: 2)));
-
-    final saved = await _showPortalAccountSaveDialog();
-    if (saved != true) return;
-
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(l10n.accountSavedFetching), duration: const Duration(seconds: 2)));
-
-    await _fetchTimetableFromServer(waitForCrawling: true);
-  }
-
-  // 계정 저장 다이얼로그
-  Future<bool?> _showPortalAccountSaveDialog() async {
+  // 포털 계정 입력 다이얼로그 (아이디/패스워드 입력)
+  Future<Map<String, String>?> _showPortalLoginDialog() async {
     final idController = TextEditingController();
     final pwController = TextEditingController();
     bool isSubmitting = false;
 
-    return showDialog<bool>(
+    return showDialog<Map<String, String>>(
       context: context,
       barrierDismissible: false,
       builder: (dialogContext) {
@@ -386,30 +373,62 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
 
                   setStateDialog(() => isSubmitting = true);
 
-                  try {
-                    await AuthRepository.I.saveSchoolAccount(schoolId: schoolId, schoolPassword: password);
-                    if (mounted) Navigator.of(dialogContext).pop(true);
-                  } catch (e) {
-                    if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('${l10n.saveFailed}: $e'), backgroundColor: Colors.red));
-                    setStateDialog(() => isSubmitting = false);
+                  // 입력받은 정보를 반환
+                  if (mounted) {
+                    Navigator.of(dialogContext).pop({
+                      'schoolId': schoolId,
+                      'schoolPassword': password,
+                    });
                   }
                 }
 
                 return AlertDialog(
-                  title: Text(l10n.portalAccountSave),
+                  title: Text(l10n.portalLinkTitle),
                   content: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(l10n.portalAccountSaveDescription, style: const TextStyle(fontSize: 13, color: Colors.grey)),
+                      Text(
+                        l10n.portalAccountSaveDescription,
+                        style: const TextStyle(fontSize: 13, color: Colors.grey),
+                      ),
                       const SizedBox(height: 16),
-                      TextField(controller: idController, decoration: InputDecoration(labelText: l10n.portalId, border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.person))),
+                      TextField(
+                        controller: idController,
+                        decoration: InputDecoration(
+                          labelText: l10n.portalId,
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.person),
+                        ),
+                        autofocus: true,
+                      ),
                       const SizedBox(height: 12),
-                      TextField(controller: pwController, obscureText: true, decoration: InputDecoration(labelText: l10n.password, border: const OutlineInputBorder(), prefixIcon: const Icon(Icons.lock))),
+                      TextField(
+                        controller: pwController,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          labelText: l10n.password,
+                          border: const OutlineInputBorder(),
+                          prefixIcon: const Icon(Icons.lock),
+                        ),
+                        onSubmitted: (_) => submit(),
+                      ),
                     ],
                   ),
                   actions: [
-                    TextButton(onPressed: isSubmitting ? null : () => Navigator.of(dialogContext).pop(false), child: Text(l10n.cancel)),
-                    ElevatedButton(onPressed: isSubmitting ? null : submit, child: isSubmitting ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2)) : Text(l10n.save)),
+                    TextButton(
+                      onPressed: isSubmitting ? null : () => Navigator.of(dialogContext).pop(null),
+                      child: Text(l10n.cancel),
+                    ),
+                    ElevatedButton(
+                      onPressed: isSubmitting ? null : submit,
+                      child: isSubmitting
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : Text(l10n.save),
+                    ),
                   ],
                 );
               },
@@ -418,6 +437,91 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
         );
       },
     );
+  }
+
+  // 포털 계정 저장 처리 (API 호출)
+  Future<void> _handlePortalLoginSuccess({
+    required String schoolId,
+    required String schoolPassword,
+  }) async {
+    if (!mounted) return;
+    final settings = Provider.of<SettingsProvider>(context, listen: false);
+    final l10n = AppLocalizations(settings.isKorean);
+
+    // 로딩 표시
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Row(
+          children: [
+            const SizedBox(
+              width: 16,
+              height: 16,
+              child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                '계정 정보를 저장하는 중입니다...',
+                style: const TextStyle(color: Colors.white),
+              ),
+            ),
+          ],
+        ),
+        duration: const Duration(seconds: 5),
+        backgroundColor: Colors.blue,
+      ),
+    );
+
+    // API로 바로 DB에 저장
+    try {
+      final response = await AuthRepository.I.saveSchoolAccount(
+        schoolId: schoolId,
+        schoolPassword: schoolPassword,
+      );
+
+      if (!mounted) return;
+
+      // 저장 성공 메시지
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            response['message']?.toString() ?? l10n.accountSavedFetching,
+          ),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+
+      // 크롤링이 백그라운드에서 진행 중이므로 시간표 조회
+      await _fetchTimetableFromServer(waitForCrawling: true);
+    } catch (e) {
+      if (!mounted) return;
+      
+      ScaffoldMessenger.of(context).hideCurrentSnackBar();
+      
+      String errorMessage = l10n.saveFailed;
+      if (e is DioException && e.response != null) {
+        final errorData = e.response?.data;
+        if (errorData is Map && errorData.containsKey('message')) {
+          errorMessage = errorData['message'].toString();
+        } else if (e.response?.statusCode == 401) {
+          errorMessage = '인증에 실패했습니다. 다시 로그인해주세요.';
+        } else if (e.response?.statusCode == 500) {
+          errorMessage = '서버 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
+        }
+      } else {
+        errorMessage = '${l10n.saveFailed}: ${e.toString()}';
+      }
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(errorMessage),
+          backgroundColor: Colors.red,
+          duration: const Duration(seconds: 4),
+        ),
+      );
+    }
   }
 
   // --- UI 빌드 (시간표 그리드) ---
@@ -487,14 +591,15 @@ class _PortalLoginScreenState extends State<PortalLoginScreen> {
                           '${l10n.updating}: ${_timetableData!.lastCrawledAt!.month}/${_timetableData!.lastCrawledAt!.day}',
                           style: const TextStyle(fontSize: 12, color: Colors.grey),
                         )
-                      else if (_timetableData!.crawlingStatus == 'crawling')
+                      else if (_timetableData!.crawlingStatus == 'crawling' && !hasData)
                         Text(
                           l10n.crawling,
                           style: const TextStyle(fontSize: 12, color: Colors.blue),
                         )
                       else
                         Text(l10n.noData, style: const TextStyle(fontSize: 12, color: Colors.grey)),
-                      if (_timetableData!.crawlingStatus == 'crawling')
+                      // 시간표가 정상적으로 표시되면 크롤링 메시지 숨김
+                      if (_timetableData!.crawlingStatus == 'crawling' && !hasData)
                         Text(
                           l10n.fetchingTimetableMessage,
                           style: const TextStyle(fontSize: 10, color: Colors.blue),

@@ -2,12 +2,28 @@
 /// - GPS 위치 추적 (포그라운드/백그라운드 모두 지원)
 /// - 속도 측정
 /// - 혼잡도 판정 (사용자 속도 < 버스 속도)
+/// - 정류장 출발 시간 기반 자동 혼잡도 판단
 /// - 백엔드로 리포트 전송
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/congestion_models.dart';
 import '../api/congestion_api.dart';
+
+/// 정류장 정보
+class StopInfo {
+  final String name;
+  final double latitude;
+  final double longitude;
+  final List<String> departureTimes; // HH:MM 형식
+
+  StopInfo({
+    required this.name,
+    required this.latitude,
+    required this.longitude,
+    required this.departureTimes,
+  });
+}
 
 class CongestionService {
   static final CongestionService I = CongestionService._internal();
@@ -42,6 +58,48 @@ class CongestionService {
   // 실패한 리포트 재시도 큐
   final List<_PendingReport> _pendingReports = [];
   static const int _maxRetries = 3;
+
+  // 정류장 출발 시간 기반 자동 판단
+  DateTime? _lastStopCheckTime; // 마지막 정류장 체크 시간
+  LocationData? _stopLocation; // 정류장에 있을 때의 위치
+  static const double _stopRadiusM = 100.0; // 정류장 인식 반경 (미터)
+  static const Duration _departureCheckWindow = Duration(minutes: 1); // 출발 시간 이후 1분 윈도우
+  
+  // 정류장 정보 (외부 셔틀 승차장) - 웹사이트에 표시된 시간대 사용
+  static final List<StopInfo> _stops = [
+    StopInfo(
+      name: '아산(KTX)역',
+      latitude: 36.794978,
+      longitude: 127.103806,
+      departureTimes: [
+        '07:40', '08:45', '11:30', '15:20'  // 웹사이트에 표시된 시간대
+      ],
+    ),
+    StopInfo(
+      name: '천안역',
+      latitude: 36.809727,
+      longitude: 127.145230,
+      departureTimes: [
+        '08:10', '08:55', '12:00', '15:40'  // 웹사이트에 표시된 시간대
+      ],
+    ),
+    StopInfo(
+      name: '천안터미널',
+      latitude: 36.8220,
+      longitude: 127.1810,
+      departureTimes: [
+        '07:30', '09:05', '11:45', '15:10'  // 웹사이트에 표시된 시간대
+      ],
+    ),
+    StopInfo(
+      name: '온양터미널/역',
+      latitude: 36.7860,
+      longitude: 127.0020,
+      departureTimes: [
+        '07:50', '08:35', '12:30', '15:50'  // 웹사이트에 표시된 시간대
+      ],
+    ),
+  ];
 
   // 위치 업데이트 설정 (백그라운드 지원)
   static const LocationSettings _locationSettings = LocationSettings(
@@ -171,6 +229,9 @@ class CongestionService {
       print('📍 위치 업데이트: 계산속도 ${speedMeasurement.speedKmh.toStringAsFixed(1)} km/h, GPS속도 ${gpsSpeedKmh.toStringAsFixed(1)} km/h, 최종 ${finalSpeedKmh.toStringAsFixed(1)} km/h');
     }
 
+    // 정류장 출발 시간 기반 자동 혼잡도 판단 (버스 탑승 전에도 작동)
+    _checkStopDepartureAutoDetection(currentLocation, position);
+
     // 정지 상태 감지 (배터리 최적화: 정지 상태에서는 혼잡도 측정 안 함)
     if (finalSpeedKmh <= _stationarySpeedThreshold) {
       _stationaryCount++;
@@ -193,7 +254,7 @@ class CongestionService {
     final isOnBus = _consecutiveBusSpeedCount >= _minConsecutiveBusSpeed;
     
     if (!isOnBus) {
-      // 버스에 탑승하지 않았으면 혼잡도 측정 안 함
+      // 버스에 탑승하지 않았으면 속도 기반 혼잡도 측정 안 함
       _lastLocation = currentLocation;
       return;
     }
@@ -226,6 +287,129 @@ class CongestionService {
     
     // 실패한 리포트 재시도
     _retryPendingReports();
+  }
+
+  /// 정류장 출발 시간 기반 자동 혼잡도 판단
+  void _checkStopDepartureAutoDetection(LocationData currentLocation, Position position) {
+    if (_currentBusType == null || _currentStartId == null || _currentStopId == null) {
+      return;
+    }
+
+    final now = DateTime.now();
+    
+    // 정류장 찾기
+    StopInfo? nearbyStop;
+    double? distanceToStop;
+    
+    for (final stop in _stops) {
+      final distance = Geolocator.distanceBetween(
+        currentLocation.latitude,
+        currentLocation.longitude,
+        stop.latitude,
+        stop.longitude,
+      );
+      
+      if (distance <= _stopRadiusM) {
+        nearbyStop = stop;
+        distanceToStop = distance;
+        break;
+      }
+    }
+    
+    if (nearbyStop == null) {
+      // 정류장 근처가 아니면 리셋
+      _stopLocation = null;
+      _lastStopCheckTime = null;
+      return;
+    }
+    
+    // 정류장 근처에 있음
+    if (_stopLocation == null) {
+      // 처음 정류장에 도착한 경우
+      _stopLocation = currentLocation;
+      _lastStopCheckTime = now;
+      if (kDebugMode) {
+        print('📍 정류장 도착: ${nearbyStop.name} (거리: ${distanceToStop!.toStringAsFixed(1)}m)');
+      }
+      return;
+    }
+    
+    // 정류장에 계속 있는 상태
+    // 출발 시간 확인
+    bool isDepartureTime = false;
+    String? departureTimeStr;
+    
+    for (final depTimeStr in nearbyStop.departureTimes) {
+      final parts = depTimeStr.split(':');
+      final hour = int.parse(parts[0]);
+      final minute = int.parse(parts[1]);
+      
+      // 출발 시간 생성
+      final depDateTime = DateTime(now.year, now.month, now.day, hour, minute);
+      
+      // 출발 시간이 지났고, 1분 이내인지 확인
+      if (now.isAfter(depDateTime) && now.difference(depDateTime) <= _departureCheckWindow) {
+        isDepartureTime = true;
+        departureTimeStr = depTimeStr;
+        break;
+      }
+    }
+    
+    if (!isDepartureTime) {
+      return; // 출발 시간이 아님
+    }
+    
+    // 출발 시간이 되었고, 정류장에 계속 있는지 확인
+    final distanceFromStop = Geolocator.distanceBetween(
+      _stopLocation!.latitude,
+      _stopLocation!.longitude,
+      currentLocation.latitude,
+      currentLocation.longitude,
+    );
+    
+    // 마지막 체크로부터 1분 이상 지났는지 확인 (중복 리포트 방지)
+    if (_lastStopCheckTime != null) {
+      final timeSinceLastCheck = now.difference(_lastStopCheckTime!);
+      if (timeSinceLastCheck < const Duration(minutes: 1)) {
+        return; // 너무 자주 체크하지 않음
+      }
+    }
+    
+    _lastStopCheckTime = now;
+    
+    // 정류장에서 30m 이상 이동했으면 출발한 것으로 판단
+    if (distanceFromStop > 30.0) {
+      // 출발 성공 → 혼잡도 낮음
+      final index = 20; // 여유
+      if (kDebugMode) {
+        print('✅ 정류장 출발 감지: ${nearbyStop.name} (${departureTimeStr}) → 혼잡도 낮음');
+      }
+      
+      _sendCongestionReportWithThrottle(
+        busType: _currentBusType!,
+        startId: nearbyStop.name,
+        stopId: _currentStopId!,
+        index: index,
+        currentPosition: position,
+      );
+      
+      // 리셋
+      _stopLocation = null;
+    } else {
+      // 정류장에 계속 머물러 있음 → 혼잡도 높음
+      final index = 85; // 혼잡
+      if (kDebugMode) {
+        print('⚠️ 정류장 출발 실패: ${nearbyStop.name} (${departureTimeStr}) → 혼잡도 높음');
+      }
+      
+      _sendCongestionReportWithThrottle(
+        busType: _currentBusType!,
+        startId: nearbyStop.name,
+        stopId: _currentStopId!,
+        index: index,
+        currentPosition: position,
+      );
+    }
   }
 
   /// 두 위치 간 속도 계산
@@ -316,11 +500,14 @@ class CongestionService {
     required String stopId,
     required int index,
     Position? currentPosition,
+    int? timeSlot, // 테스트용: 직접 지정 가능 (null이면 현재 시간으로 계산)
   }) async {
     try {
       final now = DateTime.now();
-      final weekday = now.weekday - 1; // 0=월요일, 6=일요일 (Dart의 weekday는 1=월요일, 7=일요일)
-      final timeSlot = _calculateTimeSlot(now);
+      // 서버의 weekday: 0=일요일, 1=월요일, ..., 6=토요일 (서버 응답 확인)
+      // Dart의 weekday: 1=월요일, 7=일요일
+      final weekday = now.weekday == 7 ? 0 : now.weekday; // 일요일=0, 월요일=1, ..., 토요일=6
+      final calculatedTimeSlot = timeSlot ?? _calculateTimeSlot(now);
 
       // meta 정보 수집
       CongestionMeta? meta;
@@ -341,7 +528,7 @@ class CongestionService {
         startId: startId,
         stopId: stopId,
         weekday: weekday,
-        timeSlot: timeSlot,
+        timeSlot: calculatedTimeSlot,
         index: index,
         clientTs: now, // 단말에서 리포트 전송 시각
         meta: meta,
@@ -449,6 +636,206 @@ class CongestionService {
     if (kDebugMode) {
       print('📍 버스 정보 업데이트: busType=$_currentBusType, startId=$_currentStartId, stopId=$_currentStopId');
     }
+  }
+
+  /// 테스트: 모킹된 위치/속도로 자동 혼잡도 리포트 전송
+  /// 실제 GPS 없이 테스트 가능
+  /// 서버 DB에 있는 시간대(12:40, timeSlot: 76)를 사용하여 테스트
+  Future<void> testAutoReport({
+    required double latitude,
+    required double longitude,
+    required double speedKmh, // km/h
+    String? busType,
+    String? startId,
+    String? stopId,
+    String? testTime, // HH:MM 형식 (예: "12:40"), null이면 현재 시간 사용
+  }) async {
+    if (kDebugMode) {
+      print('🧪 테스트: 모킹된 위치/속도로 자동 혼잡도 리포트 전송');
+      print('   위치: $latitude, $longitude');
+      print('   속도: $speedKmh km/h');
+    }
+    
+    // 테스트 시간대 계산 (서버 DB에 있는 시간대 사용)
+    int? testTimeSlot;
+    if (testTime != null) {
+      final parts = testTime.split(':');
+      final hour = int.parse(parts[0]);
+      final minute = int.parse(parts[1]);
+      testTimeSlot = hour * 6 + (minute / 10).floor();
+      if (kDebugMode) {
+        print('   테스트 시간대: $testTime (timeSlot: $testTimeSlot)');
+      }
+    } else {
+      // 기본값: 서버 DB에 있는 12:40 (timeSlot: 76) 사용
+      testTimeSlot = 76; // 12:40
+      if (kDebugMode) {
+        print('   테스트 시간대: 12:40 (timeSlot: 76) - 서버 DB에 있는 시간대');
+      }
+    }
+
+    // 모킹된 Position 객체 생성
+    final mockPosition = Position(
+      latitude: latitude,
+      longitude: longitude,
+      timestamp: DateTime.now(),
+      accuracy: 10.0,
+      altitude: 0.0,
+      heading: 0.0,
+      speed: speedKmh / 3.6, // km/h → m/s
+      speedAccuracy: 0.0,
+      altitudeAccuracy: 0.0,
+      headingAccuracy: 0.0,
+    );
+
+    // 모킹된 LocationData 생성
+    final mockLocation = LocationData(
+      latitude: latitude,
+      longitude: longitude,
+      speed: speedKmh / 3.6, // km/h → m/s
+      timestamp: DateTime.now(),
+    );
+
+    // busType, startId, stopId 설정 (서버 DB에 있는 노선 사용)
+    _currentBusType = busType ?? 'shuttle';
+    _currentStartId = startId ?? '아산캠퍼스';
+    _currentStopId = stopId ?? '천안 아산역'; // 서버 DB에 있는 정류장명
+
+    // 속도 기반 혼잡도 판정 테스트
+    if (speedKmh >= _busBoardingSpeed && speedKmh < _busAverageSpeed) {
+      final congestionIndex = _calculateCongestionIndex(speedKmh);
+      if (kDebugMode) {
+        print('🚌 테스트 혼잡도 판정: $congestionIndex (속도: $speedKmh km/h)');
+      }
+      
+      await _sendCongestionReport(
+        busType: _currentBusType!,
+        startId: _currentStartId!,
+        stopId: _currentStopId!,
+        index: congestionIndex,
+        currentPosition: mockPosition,
+        timeSlot: testTimeSlot, // 서버 DB에 있는 시간대 사용
+      );
+    } else if (speedKmh >= _busAverageSpeed) {
+      if (kDebugMode) {
+        print('✅ 테스트: 속도가 정상 범위 ($speedKmh km/h >= $_busAverageSpeed km/h) - 리포트 전송 안 함');
+      }
+    } else {
+      if (kDebugMode) {
+        print('⚠️ 테스트: 버스 탑승 속도 미달 ($speedKmh km/h < $_busBoardingSpeed km/h) - 리포트 전송 안 함');
+      }
+    }
+
+    // 정류장 출발 시간 기반 자동 판단 테스트
+    _checkStopDepartureAutoDetection(mockLocation, mockPosition);
+  }
+
+  /// 테스트: 정류장 출발 시간 기반 리포트 (모킹 위치)
+  /// departureTime을 timeSlot으로 변환하여 서버 DB에 있는 시간대 사용
+  Future<void> testStopDepartureReport({
+    required String stopName,
+    required String departureTime, // HH:MM 형식
+    required double latitude,
+    required double longitude,
+    required bool hasDeparted, // true: 출발함 (30m 이상 이동), false: 머물러 있음
+    String? busType,
+    String? stopId,
+  }) async {
+    if (kDebugMode) {
+      print('🧪 테스트: 정류장 출발 시간 기반 리포트');
+      print('   정류장: $stopName');
+      print('   출발 시간: $departureTime');
+      print('   출발 여부: $hasDeparted');
+    }
+    
+    // departureTime을 timeSlot으로 변환
+    final parts = departureTime.split(':');
+    final hour = int.parse(parts[0]);
+    final minute = int.parse(parts[1]);
+    final testTimeSlot = hour * 6 + (minute / 10).floor();
+    if (kDebugMode) {
+      print('   timeSlot: $testTimeSlot (출발 시간: $departureTime)');
+    }
+
+    // 정류장 찾기
+    StopInfo? targetStop;
+    for (final stop in _stops) {
+      if (stop.name == stopName) {
+        targetStop = stop;
+        break;
+      }
+    }
+
+    if (targetStop == null) {
+      if (kDebugMode) {
+        print('❌ 테스트 실패: 정류장을 찾을 수 없습니다: $stopName');
+      }
+      return;
+    }
+
+    // 모킹된 Position 객체 생성
+    final mockPosition = Position(
+      latitude: latitude,
+      longitude: longitude,
+      timestamp: DateTime.now(),
+      accuracy: 10.0,
+      altitude: 0.0,
+      heading: 0.0,
+      speed: 0.0,
+      speedAccuracy: 0.0,
+      altitudeAccuracy: 0.0,
+      headingAccuracy: 0.0,
+    );
+
+    // 출발 여부에 따라 위치 조정
+    double testLatitude = latitude;
+    double testLongitude = longitude;
+    
+    if (hasDeparted) {
+      // 정류장에서 30m 이상 떨어진 위치로 설정
+      // 간단하게 위도에 0.0003 추가 (약 33m)
+      testLatitude = latitude + 0.0003;
+    }
+
+    final mockLocation = LocationData(
+      latitude: testLatitude,
+      longitude: testLongitude,
+      speed: 0.0,
+      timestamp: DateTime.now(),
+    );
+
+    // busType, startId, stopId 설정 (서버 DB에 있는 노선 사용)
+    _currentBusType = busType ?? 'shuttle';
+    _currentStartId = '아산캠퍼스'; // 서버 DB에 있는 출발지
+    _currentStopId = stopId ?? '천안 아산역'; // 서버 DB에 있는 도착지
+
+    // 정류장 위치 저장 (시뮬레이션)
+    _stopLocation = LocationData(
+      latitude: targetStop.latitude,
+      longitude: targetStop.longitude,
+      speed: 0.0,
+      timestamp: DateTime.now(),
+    );
+
+    // 출발 여부에 따라 리포트 전송
+    final index = hasDeparted ? 20 : 85; // 출발함: 낮음, 머물러 있음: 높음
+    
+    if (kDebugMode) {
+      print('📤 테스트 리포트 전송: index=$index (${hasDeparted ? "출발함" : "머물러 있음"})');
+      print('   노선: $_currentStartId → $_currentStopId');
+    }
+
+    await _sendCongestionReport(
+      busType: _currentBusType!,
+      startId: _currentStartId!,
+      stopId: _currentStopId!,
+      index: index,
+      currentPosition: mockPosition,
+      timeSlot: testTimeSlot, // 출발 시간을 timeSlot으로 변환하여 사용
+    );
+
+    // 리셋
+    _stopLocation = null;
   }
 }
 

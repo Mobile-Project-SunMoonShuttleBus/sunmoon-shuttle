@@ -8,7 +8,9 @@ import 'portal_login_screen.dart';
 import 'settings_screen.dart';
 import 'congestion_overview_screen.dart'; // 혼잡도 화면 추가
 import '../providers/settings_provider.dart';
+import '../providers/auth_provider.dart';
 import '../core/localization/app_localizations.dart';
+import '../services/manual_congestion_monitor.dart';
 
 class MainScreen extends StatefulWidget {
   const MainScreen({super.key});
@@ -19,6 +21,7 @@ class MainScreen extends StatefulWidget {
 
 class _MainScreenState extends State<MainScreen> {
   int _selectedIndex = 0;
+  bool _hasStartedMonitoring = false;
 
   // [위젯 페이지 목록 - 통합 완료]
   final List<Widget> _widgetPages = [
@@ -30,6 +33,26 @@ class _MainScreenState extends State<MainScreen> {
     const SettingsScreen(), // 5: 설정 (새로 추가됨)
   ];
 
+  @override
+  void initState() {
+    super.initState();
+    // 로그인 상태 확인 후 모니터링 시작
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final authProvider = context.read<AuthProvider>();
+      if (authProvider.isAuthenticated && !_hasStartedMonitoring) {
+        ManualCongestionMonitor.I.startMonitoring();
+        _hasStartedMonitoring = true;
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    // MainScreen은 앱 실행 중 계속 존재하므로 모니터링을 중지하지 않음
+    // 모니터링은 로그아웃 시에만 중지됨
+    super.dispose();
+  }
+
   void _onItemTapped(int index) {
     setState(() {
       _selectedIndex = index;
@@ -38,10 +61,29 @@ class _MainScreenState extends State<MainScreen> {
 
   @override
   Widget build(BuildContext context) {
-    // SettingsProvider를 watch하여 언어 변경 감지
-    return Consumer<SettingsProvider>(
-      builder: (context, settings, _) {
-        final l10n = AppLocalizations(settings.isKorean);
+    // AuthProvider와 SettingsProvider를 watch
+    return Consumer<AuthProvider>(
+      builder: (context, authProvider, _) {
+        // 로그인 성공 시 모니터링 시작
+        if (authProvider.isAuthenticated && !_hasStartedMonitoring) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            ManualCongestionMonitor.I.startMonitoring();
+            setState(() {
+              _hasStartedMonitoring = true;
+            });
+          });
+        } else if (!authProvider.isAuthenticated && _hasStartedMonitoring) {
+          // 로그아웃 시 모니터링 중지
+          ManualCongestionMonitor.I.stopMonitoring();
+          setState(() {
+            _hasStartedMonitoring = false;
+          });
+        }
+
+        // SettingsProvider를 watch하여 언어 변경 감지
+        return Consumer<SettingsProvider>(
+          builder: (context, settings, _) {
+            final l10n = AppLocalizations(settings.isKorean);
 
         return Scaffold(
           backgroundColor: Colors.white,
@@ -89,6 +131,8 @@ class _MainScreenState extends State<MainScreen> {
                 const TextStyle(fontSize: 11, fontWeight: FontWeight.bold),
             unselectedLabelStyle: const TextStyle(fontSize: 11),
           ),
+        );
+          },
         );
       },
     );

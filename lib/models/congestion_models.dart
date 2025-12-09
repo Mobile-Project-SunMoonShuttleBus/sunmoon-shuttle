@@ -5,7 +5,7 @@ class CongestionReportRequest {
   final String busType; // shuttle 또는 campus
   final String startId; // 출발지 이름 (예: "아산캠퍼스")
   final String stopId; // 도착지 이름 (예: "아산(KTX)역")
-  final int weekday; // 0=월요일, 6=일요일
+  final int weekday; // 0=일요일, 1=월요일, ..., 6=토요일 (서버 형식)
   final int timeSlot; // 10분 단위: 08:00 = 8*6+0 = 48
   final int index; // 혼잡도 지수: 0~100
   final DateTime? clientTs; // 단말에서 리포트 전송 시각 (선택)

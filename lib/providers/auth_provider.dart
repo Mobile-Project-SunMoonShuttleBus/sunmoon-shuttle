@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show ChangeNotifier, kDebugMode;
 import 'package:dio/dio.dart';
 import '../repositories/auth_repository.dart'; // AuthRepository는 lib/repositories에 있어야 합니다
 import '../services/auth_service.dart';
+import '../services/manual_congestion_monitor.dart';
 import '../api/auth_api.dart'; 
 
 class AuthProvider extends ChangeNotifier {
@@ -41,6 +42,9 @@ class AuthProvider extends ChangeNotifier {
           expiresIn: response.expiresIn, // 만료 시간 전달
         );
         _isAuthenticated = true;
+        
+        // 로그인 성공 시 수동 혼잡도 모니터링 시작
+        ManualCongestionMonitor.I.startMonitoring();
         
         if (kDebugMode) {
           print('✅ 자동 로그인 성공');
@@ -87,6 +91,13 @@ class AuthProvider extends ChangeNotifier {
 
   void setAuthenticated(bool value) {
     _isAuthenticated = value;
+    if (value) {
+      // 로그인 성공 시 수동 혼잡도 모니터링 시작
+      ManualCongestionMonitor.I.startMonitoring();
+    } else {
+      // 로그아웃 시 모니터링 중지
+      ManualCongestionMonitor.I.stopMonitoring();
+    }
     notifyListeners();
   }
 
@@ -94,6 +105,8 @@ class AuthProvider extends ChangeNotifier {
     try { await AuthApi.I.logout(); } catch (e) {} 
     await _authService.clearTokens();
     _isAuthenticated = false;
+    // 로그아웃 시 모니터링 중지
+    ManualCongestionMonitor.I.stopMonitoring();
     notifyListeners();
   }
 }

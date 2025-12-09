@@ -6,6 +6,7 @@ import '../../providers/auth_provider.dart';
 import '../../providers/login_provider.dart'; 
 import '../../providers/register_provider.dart'; // ⭐️ [추가] RegisterProvider 임포트
 import '../../core/utils/validators.dart';
+import '../../services/manual_congestion_monitor.dart';
 import 'register_screen.dart';
 
 class LoginScreen extends StatefulWidget { 
@@ -45,8 +46,11 @@ class _LoginScreenState extends State<LoginScreen> {
       password: _passwordController.text,
     );
 
-    if (success) { context.read<AuthProvider>().setAuthenticated(true); } 
-    else {
+    if (success) {
+      context.read<AuthProvider>().setAuthenticated(true);
+      // 로그인 성공 시 수동 혼잡도 모니터링 시작
+      ManualCongestionMonitor.I.startMonitoring();
+    } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(loginProvider.errorMessage ?? '로그인 실패'), backgroundColor: Colors.red),
       );
