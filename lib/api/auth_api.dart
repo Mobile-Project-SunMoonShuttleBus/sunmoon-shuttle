@@ -287,9 +287,12 @@ class AuthApi {
       
       if (kDebugMode) {
         print('포털 계정 저장 응답: ${resp.data}');
-        if (resp.data is Map && resp.data['message'] == 'SAVED') {
+        if (resp.data is Map && resp.data.containsKey('message')) {
           print('✅ 포털 계정 정보가 서버 DB에 영구 저장되었습니다.');
           print('📋 자동 크롤링이 백그라운드에서 실행됩니다. (약 10~30초 소요)');
+          if (resp.data.containsKey('note')) {
+            print('📝 ${resp.data['note']}');
+          }
         }
       }
       
