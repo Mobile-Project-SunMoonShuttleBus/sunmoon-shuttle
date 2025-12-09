@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
+import 'package:dio/dio.dart'; // DioException 처리를 위해 Dio import
 import '../api/dio_client.dart'; 
 
 class MainMapPage extends StatefulWidget {
@@ -18,7 +19,7 @@ class _MainMapPageState extends State<MainMapPage> {
   // ⭐️ [Mocking Logic] 테스트 시 true, 실제 사용 시 false
   static const bool IS_MOCKING_LOCATION = true; 
   // ⭐️ [Mocking Point] 천안역 근처 좌표로 설정 (학교 외부)
-  static const NLatLng MOCK_START_POINT = NLatLng(36.809727, 127.145230); 
+  static const NLatLng MOCK_START_POINT = NLatLng(36.818978, 127.155411); 
 
   // 위치 및 경로 관련
   StreamSubscription<Position>? _positionStreamSubscription;
@@ -31,19 +32,25 @@ class _MainMapPageState extends State<MainMapPage> {
   // 외부 셔틀장 경로 안내 최대 거리 (미터)
   static const double MAX_WALKING_DISTANCE_M = 500.0; 
   
-  // [경로 노드] 순서 상관없이 경로를 구성하는 지점들 (학교 내부 도보 경로에만 사용됨)
+  // [경로 노드] 순서: 정문 쪽 -> 셔틀장 쪽으로 이어지는 순서라고 가정
   static const List<NLatLng> ROUTE_TO_STOP = [
-    NLatLng(36.798000, 127.074000), // Node 0
-    NLatLng(36.798500, 127.073500), // Node 1
-    NLatLng(36.799000, 127.072500), // Node 2
-    NLatLng(36.800000, 127.071500), // Node 3
+    NLatLng(36.798057, 127.071833), // Node 0
+    NLatLng(36.799466, 127.071824), // Node 1
+    NLatLng(36.799462, 127.073516), // Node 2
+    NLatLng(36.798036, 127.073529), // Node 3
+    NLatLng(36.799452, 127.073529), // Node 4
+    NLatLng(36.798028, 127.076416), // Node 5
+    NLatLng(36.799444, 127.076362), // Node 6
+    NLatLng(36.799470, 127.077909), // Node 7
+    NLatLng(36.798047, 127.077981), // Node 8
+   
   ];
 
   // [외부 셔틀 승차장] 각 역/터미널의 셔틀장 좌표
   static const List<NLatLng> EXTERNAL_STOPS = [
     NLatLng(36.794978, 127.103806), // 아산(KTX)역 [Index 0]
     NLatLng(36.809727, 127.145230), // 천안역 [Index 1]
-    NLatLng(36.8220, 127.1810),    // 천안터미널 [Index 2]
+    NLatLng(36.819289, 127.154419),    // 천안터미널 [Index 2]
     NLatLng(36.7860, 127.0020),    // 온양터미널/역 [Index 3]
   ];
 
@@ -52,6 +59,14 @@ class _MainMapPageState extends State<MainMapPage> {
   // UI 상태
   int _selectedStationIndex = 0;
   final List<String> _stationNames = ['아산(KTX)역', '천안역', '천안터미널', '온양터미널/역'];
+  
+  // ⭐️ API 호출 시 사용할 정확한 이름 매핑
+  final Map<int, String> _stationApiNames = {
+    0: '천안 아산역', // API name for 아산(KTX)역
+    1: '천안역',
+    2: '천안 터미널',
+    3: '온양역/아산터미널' 
+  };
   
   // UI 표시 정보
   bool _isLoading = true;
@@ -71,31 +86,6 @@ class _MainMapPageState extends State<MainMapPage> {
     zoom: 15.5,
   );
   
-  // ⭐️ [하드코딩된 시간표] 역/터미널 -> 캠퍼스 출발 시간표 (학교 외부용)
-  static const Map<String, List<String>> _STATION_DEP_TIMES = {
-    '아산(KTX)역': [
-      '08:25', '08:45', '08:55', '09:00', '09:10', '09:55', '10:10', '11:10', 
-      '11:55', '12:55', '14:00', '15:00', '16:00', '17:00', '18:00', '18:55', 
-      '20:05', '21:00', '21:30'
-    ],
-    // ⭐️ 15시 31분 이후의 다음 차로 15:50을 반영 (수정된 데이터)
-    '천안역': [
-      '08:15', '08:40', '08:50', '09:00', '10:00', '10:50', '11:50', '13:10', 
-      '13:20', '14:20', '15:30', 
-      '15:50', // ⬅️ 다음 차로 15:50을 반영
-      '17:00', '18:05', '18:30', '19:05', '19:25', 
-      '19:55', '20:55', '21:45'
-    ],
-    '천안터미널': [
-      '08:15', '08:25', '08:35', '08:45', '08:55', '09:30', '10:40', '11:40', 
-      '13:10', '14:00', '14:10', '15:10', '15:20', '16:10', '17:20', '18:20', 
-      '19:20', '20:10', '21:10', '22:00'
-    ],
-    '온양터미널/역': [
-      '08:10', '08:40', '10:55', '16:00', '19:00'
-    ],
-  };
-
   @override
   void initState() {
     super.initState();
@@ -142,35 +132,6 @@ class _MainMapPageState extends State<MainMapPage> {
     return distance < SCHOOL_BOUNDARY_RADIUS_M;
   }
   
-  // ⭐️ 하드코딩된 시간표에서 현재 시간 이후 가장 빠른 출발 시간 찾기
-  String _getStationDepartureTime(String stationName) {
-    final List<String>? schedule = _STATION_DEP_TIMES[stationName];
-    if (schedule == null || schedule.isEmpty) {
-      return "시간표 없음";
-    }
-
-    final DateTime now = DateTime.now();
-    
-    for (String timeString in schedule) {
-      try {
-        final parts = timeString.split(':');
-        final hour = int.parse(parts[0]);
-        final minute = int.parse(parts[1]);
-        
-        DateTime departureTime = DateTime(now.year, now.month, now.day, hour, minute);
-        
-        if (departureTime.isAfter(now.subtract(const Duration(minutes: 1)))) {
-           return timeString; // 현재 시각 이후의 가장 빠른 시간
-        }
-        
-      } catch (e) {
-        continue;
-      }
-    }
-    
-    return schedule.first;
-  }
-
   int _findBestEntryNode(NLatLng currentPos) {
     int bestIndex = -1;
     double minDistanceToUser = double.infinity;
@@ -181,6 +142,7 @@ class _MainMapPageState extends State<MainMapPage> {
       double distanceToUser = _calculateDistance(currentPos, node);
       double distanceNodeToStop = _calculateDistance(node, SCHOOL_SHUTTLE_STOP);
       
+      // 사용자로부터 너무 멀리 떨어져 있거나 뒤쪽 노드인 경우 제외 (휴리스틱)
       if ((distanceToUser + distanceNodeToStop) > (distToFinalStop * 1.5)) {
         continue;
       }
@@ -246,6 +208,7 @@ class _MainMapPageState extends State<MainMapPage> {
     });
   }
 
+  // 🚀 [경로 로직 수정] 학교 내부 경로 최적화
   void _updatePathToStop() {
     if (_currentUserPosition == null || _mapController == null) return;
 
@@ -263,51 +226,47 @@ class _MainMapPageState extends State<MainMapPage> {
       
       finalDestination = SCHOOL_SHUTTLE_STOP;
       
+      // 1. 가장 가까운 진입 노드 찾기
       int entryIndex = _findBestEntryNode(_currentUserPosition!);
       
       if (entryIndex != -1) {
-          if (_calculateDistance(_currentUserPosition!, finalDestination) < _calculateDistance(_currentUserPosition!, ROUTE_TO_STOP[entryIndex])) {
+          // 예외 처리: 현재 위치에서 목적지까지가 진입 노드보다 더 가까우면 바로 연결
+          if (_calculateDistance(_currentUserPosition!, finalDestination) < 
+              _calculateDistance(_currentUserPosition!, ROUTE_TO_STOP[entryIndex])) {
+              
+              pathCoords.add(_currentUserPosition!);
               pathCoords.add(finalDestination);
               gotoDrawPath(pathCoords, finalDestination);
               return;
           }
 
-          NLatLng entryNode = ROUTE_TO_STOP[entryIndex];
-          pathCoords.add(entryNode);
-          NLatLng lastAddedPoint = entryNode;
-          Set<int> visitedIndices = {entryIndex};
+          // 2. 경로 생성 시작
+          pathCoords.add(_currentUserPosition!);
+          pathCoords.add(ROUTE_TO_STOP[entryIndex]); // A노드 (진입)
           
-          while (visitedIndices.length < ROUTE_TO_STOP.length) {
-              int nextNodeIndex = -1;
-              double minDistance = double.infinity;
-              
-              for (int i = 0; i < ROUTE_TO_STOP.length; i++) {
-                  if (visitedIndices.contains(i)) continue; 
-                  
-                  NLatLng candidateNode = ROUTE_TO_STOP[i];
-                  double distance = _calculateDistance(lastAddedPoint, candidateNode);
-                  
-                  if (_calculateDistance(lastAddedPoint, finalDestination) < distance) {
-                      nextNodeIndex = -2; 
-                      break;
-                  }
-                  
-                  if (distance < minDistance) {
-                      minDistance = distance;
-                      nextNodeIndex = i;
-                  }
-              }
+          NLatLng lastAddedNode = ROUTE_TO_STOP[entryIndex];
 
-              if (nextNodeIndex == -2 || nextNodeIndex == -1) { 
-                  break;
-              } else { 
-                  lastAddedPoint = ROUTE_TO_STOP[nextNodeIndex];
-                  pathCoords.add(lastAddedPoint);
-                  visitedIndices.add(nextNodeIndex);
+          // 3. 다음 노드들 탐색 (Greedy Path Finding)
+          // entryIndex 이후의 노드들만 확인 (순차적이라고 가정)
+          for (int i = entryIndex + 1; i < ROUTE_TO_STOP.length; i++) {
+              NLatLng nextNode = ROUTE_TO_STOP[i];
+              
+              double distToDest = _calculateDistance(lastAddedNode, finalDestination);
+              double distToNextNode = _calculateDistance(lastAddedNode, nextNode);
+              
+              // ⭐️ 핵심 로직: 다음 노드보다 목적지가 더 가까우면 노드 연결 중단하고 바로 목적지로
+              if (distToDest < distToNextNode) {
+                  break; 
               }
+              
+              // 다음 노드가 유효하면 추가
+              pathCoords.add(nextNode);
+              lastAddedNode = nextNode;
           }
+      } else {
+          // 적절한 노드가 없으면 그냥 직선 연결
+          pathCoords.add(_currentUserPosition!);
       }
-      pathCoords.insert(0, _currentUserPosition!);
       
     } else {
       // MODE 2: 학교 외부 경로 안내 (거리 체크 로직 포함)
@@ -343,7 +302,7 @@ class _MainMapPageState extends State<MainMapPage> {
     if (_isTooFar) return;
 
     // 최종 목적지를 연결
-    if (pathCoords.last != finalDestination) {
+    if (pathCoords.isEmpty || pathCoords.last != finalDestination) {
         pathCoords.add(finalDestination);
     }
     
@@ -418,54 +377,90 @@ class _MainMapPageState extends State<MainMapPage> {
     }
   }
 
-  // ⭐️ [수정] 학교 외부일 때 역 출발 시간표를 조회하여 UI 업데이트
+  // ⭐️ [API 통합] 다음 출발 시간을 API에서 조회하고 가장 가까운 시간을 찾는 함수
   Future<void> _fetchBusData() async {
-    try {
-      await Future.delayed(const Duration(milliseconds: 300));
-      
-      final DateTime now = DateTime.now();
-      String formattedTime;
-      int diffMinutes;
-      
-      final String stationNameKey = _stationNames[_selectedStationIndex];
-      
-      if (_isUserInsideSchool()) {
-        // ⭐️ 학교 내부 모드: 기존 임시 로직 유지 (캠퍼스 -> 역)
-        int nextMinute = (now.minute ~/ 15 + 1) * 15;
-        DateTime nextDeparture = DateTime(now.year, now.month, now.day, now.hour, 0).add(Duration(minutes: nextMinute));
-        
-        diffMinutes = nextDeparture.difference(now).inMinutes;
-        formattedTime = "${nextDeparture.hour.toString().padLeft(2, '0')}:${nextDeparture.minute.toString().padLeft(2, '0')}";
-      
-      } else {
-        // ⭐️ 학교 외부 모드: 하드코딩된 역 -> 캠퍼스 시간표 조회
-        final String nextDepTime = _getStationDepartureTime(stationNameKey);
+    setState(() {
+        _isLoading = true;
+        _nextDepartureTime = "조회 중..."; 
+        _timeRemaining = "";
+    });
 
-        if (nextDepTime == "운행 종료" || nextDepTime == "시간표 없음") {
-           formattedTime = "운행 종료";
-           diffMinutes = 0;
-        } else {
-           final parts = nextDepTime.split(':');
-           final hour = int.parse(parts[0]);
-           final minute = int.parse(parts[1]);
-           
-           DateTime nextDeparture = DateTime(now.year, now.month, now.day, hour, minute);
-           
-           if (nextDeparture.isBefore(now.subtract(const Duration(minutes: 1)))) {
-               // 이미 지난 시간이라면 (운행 종료 또는 다음 날 첫차)
-               formattedTime = nextDepTime; 
-               diffMinutes = 0; 
-           } else {
-               diffMinutes = nextDeparture.difference(now).inMinutes.ceil();
-               formattedTime = nextDepTime;
-           }
-        }
-      }
+    try {
+      final String stationNameKey = _stationNames[_selectedStationIndex];
+      final String stationApiName = _stationApiNames[_selectedStationIndex]!; // ⭐️ API 이름 사용
       
+      final String departureStation;
+      final String arrivalStation;
+
+      if (_isUserInsideSchool()) {
+        // 학교 내부: 캠퍼스 출발 시간 (Campus -> Station)
+        departureStation = '아산캠퍼스';
+        arrivalStation = stationApiName; // ⭐️ API 이름 사용
+      } else {
+        // 학교 외부: 선택된 역 출발 시간 (Station -> Campus)
+        departureStation = stationApiName; // ⭐️ API 이름 사용
+        arrivalStation = '아산캠퍼스';
+      }
+
+      // API Call: Fetch ALL schedules for the day
+      final response = await DioClient.instance.get(
+        '/api/shuttle/schedules',
+        queryParameters: {
+          'dayType': '평일',
+          'departure': departureStation,
+          'arrival': arrivalStation,
+          'limit': '0', // 전체 스케줄 요청
+        },
+      );
+
+      String nextDepTime = "운행 종료";
+      int diffMinutes = 0;
+      bool foundNextDeparture = false;
+      
+      if (response.data != null && response.data['data'] != null && response.data['data'].isNotEmpty) {
+        List<dynamic> schedules = response.data['data'];
+        DateTime now = DateTime.now();
+
+        for (var schedule in schedules) {
+            String depTimeStr = schedule['departureTime'] ?? "운행 종료";
+
+            if (depTimeStr != "운행 종료" && depTimeStr != "시간표 없음") {
+                try {
+                    final parts = depTimeStr.split(':');
+                    final hour = int.parse(parts[0]);
+                    final minute = int.parse(parts[1]);
+                    
+                    // Create a DateTime object for this specific departure time today
+                    DateTime departureTime = DateTime(now.year, now.month, now.day, hour, minute);
+
+                    // Check if this time is in the future (plus a 1-minute buffer)
+                    if (departureTime.isAfter(now.subtract(const Duration(minutes: 1)))) {
+                        nextDepTime = depTimeStr;
+                        diffMinutes = departureTime.difference(now).inMinutes.ceil();
+                        foundNextDeparture = true;
+                        break; // Found the next one, stop iterating
+                    }
+                } catch (e) {
+                    // Time parsing error, skip this schedule item
+                    continue; 
+                }
+            }
+        }
+        
+        if (!foundNextDeparture) {
+            // If the loop finishes without finding a future time, service is likely over for the day
+            nextDepTime = "운행 종료";
+        }
+
+      } else if (response.data != null && response.data['data'].isEmpty) {
+         nextDepTime = "운행 없음";
+      }
+
+
       if (mounted) {
         setState(() {
-          _nextDepartureTime = formattedTime;
-          _timeRemaining = "$diffMinutes분";
+          _nextDepartureTime = nextDepTime;
+          _timeRemaining = (diffMinutes > 0) ? "$diffMinutes분" : "";
           _isLoading = false;
         });
       }
@@ -475,7 +470,17 @@ class _MainMapPageState extends State<MainMapPage> {
       }
 
     } catch (e) {
-      if (mounted) setState(() => _isLoading = false);
+      if (mounted) {
+         String errorMsg = "조회 실패";
+         if (e is DioException) {
+            errorMsg = "API 오류: ${e.response?.statusCode ?? '연결 실패'}";
+         }
+         setState(() {
+            _nextDepartureTime = errorMsg;
+            _timeRemaining = "";
+            _isLoading = false;
+         });
+      }
     }
   }
 
