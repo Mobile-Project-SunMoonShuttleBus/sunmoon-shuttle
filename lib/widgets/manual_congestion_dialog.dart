@@ -21,30 +21,49 @@ class ManualCongestionDialog extends StatefulWidget {
   });
 
   /// 전역 모달 표시 (어디 화면에 있든 표시)
-  static void showGlobal({
+  /// 모달이 실제로 표시되고 닫혔는지 여부를 반환
+  static Future<bool> showGlobal({
     required String busType,
     required String startId,
     required String stopId,
     required String departureTime,
-  }) {
+  }) async {
     final context = navigatorKey.currentContext;
     if (context == null) {
       if (kDebugMode) {
         print('⚠️ navigatorKey.currentContext가 null입니다. 모달을 표시할 수 없습니다.');
       }
-      return;
+      return false;
     }
 
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (dialogContext) => ManualCongestionDialog(
-        busType: busType,
-        startId: startId,
-        stopId: stopId,
-        departureTime: departureTime,
-      ),
-    );
+    try {
+      // showDialog는 Future<bool?>을 반환 (Navigator.pop(true/false)의 값)
+      // 이미 다이얼로그가 열려있어도 Flutter가 자동으로 처리하므로 바로 호출
+      final result = await showDialog<bool>(
+        context: context,
+        barrierDismissible: false,
+        builder: (dialogContext) => ManualCongestionDialog(
+          busType: busType,
+          startId: startId,
+          stopId: stopId,
+          departureTime: departureTime,
+        ),
+      );
+      // 모달이 실제로 표시되고 닫혔는지 여부 반환 (true: 제출, false: 취소/자동닫힘, null: 표시 실패)
+      // result가 null이면 모달이 표시되지 않았거나 이미 열려있었을 수 있음
+      if (result == null) {
+        if (kDebugMode) {
+          print('⚠️ 모달이 표시되지 않았거나 이미 열려있습니다.');
+        }
+        return false;
+      }
+      return result;
+    } catch (e) {
+      if (kDebugMode) {
+        print('❌ 모달 표시 실패: $e');
+      }
+      return false;
+    }
   }
 
   @override
@@ -84,7 +103,9 @@ class _ManualCongestionDialogState extends State<ManualCongestionDialog> {
       if (_remainingSeconds <= 0) {
         timer.cancel();
         if (mounted) {
-          Navigator.of(context).pop();
+          // 입력하지 않고 자동으로 닫힐 때도 모달이 닫혔음을 알림
+          // showGlobal의 Future가 완료되어 시간이 업데이트됨
+          Navigator.of(context).pop(false); // false: 입력하지 않고 자동 닫힘
         }
       }
     });
@@ -139,7 +160,8 @@ class _ManualCongestionDialogState extends State<ManualCongestionDialog> {
         TextButton(
           onPressed: _isSubmitting ? null : () {
             _autoCloseTimer?.cancel();
-            Navigator.of(context).pop();
+            // 취소 버튼으로 닫을 때도 모달이 닫혔음을 알림
+            Navigator.of(context).pop(false); // false: 입력하지 않고 취소
           },
           child: const Text('취소'),
         ),
@@ -285,4 +307,5 @@ class _ManualCongestionDialogState extends State<ManualCongestionDialog> {
     }
   }
 }
+
 

@@ -9,6 +9,7 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import '../models/congestion_models.dart';
 import '../api/congestion_api.dart';
+import '../widgets/manual_congestion_dialog.dart';
 
 /// 정류장 정보
 class StopInfo {
@@ -39,12 +40,12 @@ class CongestionService {
   // 버스 평균 속도 (km/h)
   static const double _busAverageSpeed = 50.0; // 도심/고속도로 평균
   
-  // 버스 탑승 판정 속도 (km/h) - 이 속도 이상이면 버스 탑승으로 판단
-  static const double _busBoardingSpeed = 20.0; // 20km/h 이상이면 버스 탑승으로 판단
+  // 이동 중 판정 속도 (km/h) - 이 속도 이상이면 이동 중으로 판단 (사람의 걷는 속도)
+  static const double _busBoardingSpeed = 2.5; // 2.5km/h 이상이면 이동 중으로 판단 (걷는 속도)
   
-  // 버스 탑승 확인을 위한 연속 속도 체크 (최소 2회 연속)
+  // 이동 중 확인을 위한 연속 속도 체크 (최소 1회 연속)
   int _consecutiveBusSpeedCount = 0;
-  static const int _minConsecutiveBusSpeed = 2; // 최소 2회 연속 버스 속도여야 탑승으로 판단
+  static const int _minConsecutiveBusSpeed = 1; // 최소 1회 연속 이동 속도여야 이동 중으로 판단
   
   // 혼잡도 리포트 전송 빈도 제한 (30초마다 최대 1회)
   DateTime? _lastReportTime;
@@ -58,6 +59,10 @@ class CongestionService {
   // 실패한 리포트 재시도 큐
   final List<_PendingReport> _pendingReports = [];
   static const int _maxRetries = 3;
+
+  // 속도 감지 시 모달 표시 중복 방지
+  DateTime? _lastSpeedModalTime;
+  static const Duration _speedModalInterval = Duration(seconds: 90); // 1분 30초마다 최대 1회 모달 표시
 
   // 정류장 출발 시간 기반 자동 판단
   DateTime? _lastStopCheckTime; // 마지막 정류장 체크 시간
@@ -244,28 +249,31 @@ class CongestionService {
       _stationaryCount = 0; // 이동 중이면 카운터 리셋
     }
 
-    // 버스 탑승 자동 감지: 연속적으로 일정 속도 이상이면 버스 탑승으로 판단
+    // 이동 중 자동 감지: 연속적으로 일정 속도 이상이면 이동 중으로 판단 (걷는 속도 기준)
     if (finalSpeedKmh >= _busBoardingSpeed) {
       _consecutiveBusSpeedCount++;
     } else {
       _consecutiveBusSpeedCount = 0; // 속도가 떨어지면 리셋
     }
     
-    final isOnBus = _consecutiveBusSpeedCount >= _minConsecutiveBusSpeed;
+    final isMoving = _consecutiveBusSpeedCount >= _minConsecutiveBusSpeed;
     
-    if (!isOnBus) {
-      // 버스에 탑승하지 않았으면 속도 기반 혼잡도 측정 안 함
+    if (!isMoving) {
+      // 이동 중이 아니면 속도 기반 혼잡도 측정 안 함
       _lastLocation = currentLocation;
       return;
     }
 
-    // 버스 탑승 중이고, 사용자 속도 < 버스 속도 → 혼잡
+    // 이동 중이고, 사용자 속도 < 버스 속도 → 혼잡 (셔틀장 밖에서도 작동)
     if (finalSpeedKmh < _busAverageSpeed) {
       final congestionIndex = _calculateCongestionIndex(finalSpeedKmh);
       
       if (kDebugMode) {
         print('🚌 혼잡도 판정: $congestionIndex (속도: ${finalSpeedKmh.toStringAsFixed(1)} km/h < 버스: $_busAverageSpeed km/h)');
       }
+
+      // 속도 감지 시 모달 표시 (어떤 화면에 있든 표시)
+      _showSpeedBasedModal(finalSpeedKmh);
 
       // 백엔드로 리포트 전송 (빈도 제한 + null 체크)
       if (_currentBusType != null && _currentStartId != null && _currentStopId != null) {
@@ -573,7 +581,9 @@ class CongestionService {
       }
 
       try {
-        final weekday = now.weekday - 1;
+        // 서버의 weekday: 0=일요일, 1=월요일, ..., 6=토요일
+        // Dart의 weekday: 1=월요일, 7=일요일
+        final weekday = now.weekday == 7 ? 0 : now.weekday; // 일요일=0, 월요일=1, ..., 토요일=6
         final timeSlot = _calculateTimeSlot(now);
         
         final request = CongestionReportRequest(
@@ -836,6 +846,64 @@ class CongestionService {
 
     // 리셋
     _stopLocation = null;
+  }
+
+  /// 속도 감지 시 모달 표시 (어떤 화면에 있든 표시)
+  void _showSpeedBasedModal(double speedKmh) {
+    final now = DateTime.now();
+    
+    // 중복 방지: 1분 30초마다 최대 1회 모달 표시
+    if (_lastSpeedModalTime != null) {
+      final timeSinceLastModal = now.difference(_lastSpeedModalTime!);
+      if (timeSinceLastModal < _speedModalInterval) {
+        if (kDebugMode) {
+          print('⏱️ 속도 기반 모달 빈도 제한: ${timeSinceLastModal.inSeconds}초 전에 표시됨 (${_speedModalInterval.inSeconds}초 필요)');
+        }
+        return;
+      }
+    }
+
+    // busType, startId, stopId가 설정되지 않았으면 기본값 사용
+    final busType = _currentBusType ?? 'shuttle';
+    final startId = _currentStartId ?? '아산캠퍼스';
+    final stopId = _currentStopId ?? '천안 아산역';
+    
+    // 현재 시간을 출발 시간으로 사용 (HH:MM 형식)
+    final departureTime = '${now.hour.toString().padLeft(2, '0')}:${now.minute.toString().padLeft(2, '0')}';
+    
+    if (kDebugMode) {
+      final timeSinceLast = _lastSpeedModalTime != null 
+          ? now.difference(_lastSpeedModalTime!).inSeconds 
+          : null;
+      print('📱 속도 기반 혼잡도 모달 표시 시도: 속도 ${speedKmh.toStringAsFixed(1)} km/h (마지막 모달: ${timeSinceLast != null ? "${timeSinceLast}초 전" : "없음"})');
+    }
+
+    // 전역 모달 표시 (어떤 화면에 있든 표시)
+    // 모달이 실제로 표시되고 닫혔을 때만 시간을 업데이트
+    ManualCongestionDialog.showGlobal(
+      busType: busType,
+      startId: startId,
+      stopId: stopId,
+      departureTime: 'SPEED_$departureTime', // 속도 기반임을 표시
+    ).then((wasShown) {
+      // 모달이 실제로 표시되고 닫혔을 때만 시간 업데이트
+      // 입력했든 안 했든, 자동으로 닫혔든 상관없이 모달이 닫혔으면 시간 업데이트
+      if (wasShown) {
+        _lastSpeedModalTime = DateTime.now();
+        if (kDebugMode) {
+          print('✅ 속도 기반 모달 닫힘: 시간 업데이트됨 (다음 모달은 1분 30초 후 표시 가능)');
+        }
+      } else {
+        if (kDebugMode) {
+          print('⚠️ 속도 기반 모달 표시 실패: 시간 업데이트 안 함');
+        }
+      }
+    }).catchError((error) {
+      // 에러 발생 시에도 시간 업데이트하지 않음
+      if (kDebugMode) {
+        print('❌ 속도 기반 모달 표시 중 에러: $error');
+      }
+    });
   }
 }
 

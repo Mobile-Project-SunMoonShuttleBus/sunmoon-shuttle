@@ -3,8 +3,8 @@ import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 import 'package:dio/dio.dart'; // DioException 처리를 위해 Dio import
-import '../api/dio_client.dart';
-import 'notice_list_screen.dart'; 
+import '../api/dio_client.dart'; 
+import 'notice_list_screen.dart'; // 공지사항 화면 import
 
 class MainMapPage extends StatefulWidget {
   const MainMapPage({super.key});
@@ -17,11 +17,6 @@ class _MainMapPageState extends State<MainMapPage> {
   NaverMapController? _mapController;
   Timer? _refreshTimer;
   
-  // ⭐️ [Mocking Logic] 테스트 시 true, 실제 사용 시 false
-  static const bool IS_MOCKING_LOCATION = true; 
-  // ⭐️ [Mocking Point] 천안역 근처 좌표로 설정 (학교 외부)
-  static const NLatLng MOCK_START_POINT = NLatLng(36.818978, 127.155411); 
-
   // 위치 및 경로 관련
   StreamSubscription<Position>? _positionStreamSubscription;
   NLatLng? _currentUserPosition; 
@@ -44,15 +39,14 @@ class _MainMapPageState extends State<MainMapPage> {
     NLatLng(36.799444, 127.076362), // Node 6
     NLatLng(36.799470, 127.077909), // Node 7
     NLatLng(36.798047, 127.077981), // Node 8
-   
   ];
 
   // [외부 셔틀 승차장] 각 역/터미널의 셔틀장 좌표
   static const List<NLatLng> EXTERNAL_STOPS = [
     NLatLng(36.794978, 127.103806), // 아산(KTX)역 [Index 0]
     NLatLng(36.809727, 127.145230), // 천안역 [Index 1]
-    NLatLng(36.819289, 127.154419),    // 천안터미널 [Index 2]
-    NLatLng(36.7860, 127.0020),    // 온양터미널/역 [Index 3]
+    NLatLng(36.819289, 127.154419), // 천안터미널 [Index 2]
+    NLatLng(36.7860, 127.0020),     // 온양터미널/역 [Index 3]
   ];
 
   final Set<NMarker> _markers = {}; 
@@ -91,24 +85,13 @@ class _MainMapPageState extends State<MainMapPage> {
   void initState() {
     super.initState();
     
-    // ⭐️ [추가] 초기 로딩 시 현재 위치와 가장 가까운 역을 선택
-    if (IS_MOCKING_LOCATION) {
-        double minDistance = double.infinity;
-        int bestIndex = 0;
-        
-        for (int i = 0; i < EXTERNAL_STOPS.length; i++) {
-            final dist = _calculateDistance(MOCK_START_POINT, EXTERNAL_STOPS[i]);
-            if (dist < minDistance) {
-                minDistance = dist;
-                bestIndex = i;
-            }
-        }
-        _selectedStationIndex = bestIndex;
-    }
-    
+    // 1. 위치 권한 확인 및 실제 위치 리스닝 시작
     _checkPermissionAndListenLocation();
     
+    // 2. 초기 데이터 조회 (기본 선택된 역 기준)
     _fetchBusData();
+    
+    // 3. 주기적 데이터 갱신 (15초마다)
     _refreshTimer = Timer.periodic(const Duration(seconds: 15), (_) => _fetchBusData());
   }
 
@@ -156,60 +139,91 @@ class _MainMapPageState extends State<MainMapPage> {
     return bestIndex;
   }
 
+  // ⭐️ [수정] 실제 위치 서비스 활성화 및 권한 확인 후 스트림 리스닝
   Future<void> _checkPermissionAndListenLocation() async {
-    if (IS_MOCKING_LOCATION) {
-        _positionStreamSubscription = Stream<Position>.periodic(const Duration(seconds: 2), (count) {
-            return Position(
-                latitude: MOCK_START_POINT.latitude,
-                longitude: MOCK_START_POINT.longitude,
-                timestamp: DateTime.now(),
-                accuracy: 0.0,
-                altitude: 0.0,
-                heading: 0.0,
-                speed: 0.0,
-                speedAccuracy: 0.0,
-                altitudeAccuracy: 0.0,
-                headingAccuracy: 0.0,
-            );
-        }).listen((Position position) {
-            final newPos = NLatLng(position.latitude, position.longitude);
-            _currentUserPosition = newPos;
+    bool serviceEnabled;
+    LocationPermission permission;
 
-            if (_mapController != null) {
-                _updatePathToStop();
-            }
-        });
-        return; 
+    // 1. 위치 서비스 활성화 여부 확인
+    serviceEnabled = await Geolocator.isLocationServiceEnabled();
+    if (!serviceEnabled) {
+      // 위치 서비스가 꺼져 있으면 사용자에게 요청하거나 기본 처리
+      return;
     }
 
-    bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
-    if (!serviceEnabled) return;
-    LocationPermission permission = await Geolocator.checkPermission();
+    // 2. 위치 권한 확인 및 요청
+    permission = await Geolocator.checkPermission();
     if (permission == LocationPermission.denied) {
       permission = await Geolocator.requestPermission();
-      if (permission == LocationPermission.denied) return;
+      if (permission == LocationPermission.denied) {
+        // 권한 거부됨
+        return;
+      }
     }
     
+    if (permission == LocationPermission.deniedForever) {
+      // 권한 영구 거부됨
+      return;
+    }
+    
+    // 3. 실제 위치 스트림 구독 (정확도 High, 10m 이동 시 업데이트)
     final locationSettings = const LocationSettings(accuracy: LocationAccuracy.high, distanceFilter: 10);
     _positionStreamSubscription = Geolocator.getPositionStream(locationSettings: locationSettings)
         .listen((Position position) {
       
       final newPos = NLatLng(position.latitude, position.longitude);
+      
+      // 첫 위치 수신 시 가장 가까운 역 자동 선택 로직 (선택 사항)
+      if (_currentUserPosition == null) {
+          _selectNearestStation(newPos);
+      }
+
       _currentUserPosition = newPos;
 
       if (_mapController != null) {
         try {
+          // 지도에 현재 위치 오버레이 표시
           _mapController!.getLocationOverlay()
             ..setPosition(newPos)
             ..setIsVisible(true);
-        } catch (e) {}
-        
-        _updatePathToStop();
+            
+          // 위치가 갱신될 때마다 경로 업데이트
+          _updatePathToStop();
+          
+          // (선택) 위치가 변경되면 버스 데이터도 갱신할지 여부 결정
+          // _fetchBusData(); 
+        } catch (e) {
+            // 지도 컨트롤러 에러 무시
+        }
       }
     });
   }
+  
+  // ⭐️ [추가] 현재 위치 기반 가장 가까운 역 자동 선택
+  void _selectNearestStation(NLatLng pos) {
+      double minDistance = double.infinity;
+      int bestIndex = 0;
+      
+      // 학교 내부가 아닐 때만 외부 역 중 가장 가까운 곳을 찾음
+      if (_calculateDistance(pos, SCHOOL_SHUTTLE_STOP) >= SCHOOL_BOUNDARY_RADIUS_M) {
+          for (int i = 0; i < EXTERNAL_STOPS.length; i++) {
+              final dist = _calculateDistance(pos, EXTERNAL_STOPS[i]);
+              if (dist < minDistance) {
+                  minDistance = dist;
+                  bestIndex = i;
+              }
+          }
+          // UI 갱신 없이 내부 상태만 변경하거나, setState로 갱신
+          if (mounted) {
+              setState(() {
+                  _selectedStationIndex = bestIndex;
+              });
+              _fetchBusData(); // 선택된 역에 맞는 데이터 다시 가져오기
+          }
+      }
+  }
 
-  // 🚀 [경로 로직 수정] 학교 내부 경로 최적화
+  // 🚀 [경로 로직] 학교 내부 경로 최적화
   void _updatePathToStop() {
     if (_currentUserPosition == null || _mapController == null) return;
 
@@ -248,24 +262,21 @@ class _MainMapPageState extends State<MainMapPage> {
           NLatLng lastAddedNode = ROUTE_TO_STOP[entryIndex];
 
           // 3. 다음 노드들 탐색 (Greedy Path Finding)
-          // entryIndex 이후의 노드들만 확인 (순차적이라고 가정)
           for (int i = entryIndex + 1; i < ROUTE_TO_STOP.length; i++) {
               NLatLng nextNode = ROUTE_TO_STOP[i];
               
               double distToDest = _calculateDistance(lastAddedNode, finalDestination);
               double distToNextNode = _calculateDistance(lastAddedNode, nextNode);
               
-              // ⭐️ 핵심 로직: 다음 노드보다 목적지가 더 가까우면 노드 연결 중단하고 바로 목적지로
+              // 다음 노드보다 목적지가 더 가까우면 노드 연결 중단하고 바로 목적지로
               if (distToDest < distToNextNode) {
                   break; 
               }
               
-              // 다음 노드가 유효하면 추가
               pathCoords.add(nextNode);
               lastAddedNode = nextNode;
           }
       } else {
-          // 적절한 노드가 없으면 그냥 직선 연결
           pathCoords.add(_currentUserPosition!);
       }
       
@@ -380,11 +391,8 @@ class _MainMapPageState extends State<MainMapPage> {
 
   // ⭐️ [API 통합] 다음 출발 시간을 API에서 조회하고 가장 가까운 시간을 찾는 함수
   Future<void> _fetchBusData() async {
-    setState(() {
-        _isLoading = true;
-        _nextDepartureTime = "조회 중..."; 
-        _timeRemaining = "";
-    });
+    // 로딩 상태는 처음에만 표시하거나 생략하여 깜빡임 방지 가능
+    // setState(() { ... }); 
 
     try {
       final String stationNameKey = _stationNames[_selectedStationIndex];
@@ -442,14 +450,12 @@ class _MainMapPageState extends State<MainMapPage> {
                         break; // Found the next one, stop iterating
                     }
                 } catch (e) {
-                    // Time parsing error, skip this schedule item
                     continue; 
                 }
             }
         }
         
         if (!foundNextDeparture) {
-            // If the loop finishes without finding a future time, service is likely over for the day
             nextDepTime = "운행 종료";
         }
 
