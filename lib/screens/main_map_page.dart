@@ -3,7 +3,8 @@ import 'package:flutter_naver_map/flutter_naver_map.dart';
 import 'dart:async';
 import 'package:geolocator/geolocator.dart';
 import 'package:dio/dio.dart'; // DioException 처리를 위해 Dio import
-import '../api/dio_client.dart'; 
+import '../api/dio_client.dart';
+import 'notice_list_screen.dart'; 
 
 class MainMapPage extends StatefulWidget {
   const MainMapPage({super.key});
@@ -584,7 +585,16 @@ class _MainMapPageState extends State<MainMapPage> {
             const SizedBox(width: 10),
             const Text('등하교 셔틀', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold)),
             const Spacer(),
-            const Icon(Icons.notifications_none, size: 28, color: Colors.grey),
+            InkWell(
+              onTap: () {
+                Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (context) => const NoticeListScreen(),
+                  ),
+                );
+              },
+              child: const Icon(Icons.notifications_none, size: 28, color: Colors.grey),
+            ),
           ],
         ),
       ),
