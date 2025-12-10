@@ -107,43 +107,48 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
       builder: (context, settingsProvider, _) {
         final l10n = AppLocalizations(settingsProvider.isKorean);
         
-        return Dialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          child: Container(
-            width: MediaQuery.of(context).size.width * 0.9,
-            height: MediaQuery.of(context).size.height * 0.7,
-            padding: const EdgeInsets.all(20),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        return Scaffold(
+          backgroundColor: Colors.grey[50],
+          appBar: AppBar(
+            backgroundColor: Colors.white,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.black87),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+            title: const Row(
               children: [
-                // 헤더
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text(
-                      l10n.noticeListTitle,
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.close),
-                      onPressed: () => Navigator.of(context).pop(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                
-                // 내용
-                Expanded(
-                  child: _buildContent(l10n),
+                Text(
+                  '📢 셔틀버스 공지',
+                  style: TextStyle(
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                    color: Colors.black87,
+                  ),
                 ),
               ],
             ),
+            actions: [
+              IconButton(
+                icon: (_isLoading || _syncing)
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+                        ),
+                      )
+                    : const Icon(
+                        Icons.refresh,
+                        color: Colors.grey,
+                      ),
+                onPressed: (_isLoading || _syncing) ? null : _handleSync,
+                tooltip: '크롤링 및 새로고침',
+              ),
+            ],
           ),
+          body: _buildContent(l10n),
         );
       },
     );
@@ -208,6 +213,7 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
     return RefreshIndicator(
       onRefresh: _loadNotices,
       child: ListView.builder(
+        padding: const EdgeInsets.all(16),
         itemCount: _notices.length,
         itemBuilder: (context, index) {
           final notice = _notices[index];
@@ -217,87 +223,74 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
     );
   }
 
-  Widget _buildNoticeItem(NoticeModel notice, AppLocalizations l10n) {
+  Widget _buildNoticeItem(ShuttleNoticeSummary notice, AppLocalizations l10n) {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
+      elevation: 1,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+        side: BorderSide(color: Colors.grey[100]!),
+      ),
       child: InkWell(
         onTap: () {
           // 공지사항 클릭 시 상세 화면으로 이동
           Navigator.of(context).push(
             MaterialPageRoute(
-              builder: (context) => NoticeDetailScreen(noticeId: notice.id),
+              builder: (context) => ShuttleNoticeDetailScreen(
+                noticeId: notice.id,
+                initialTitle: notice.title,
+              ),
             ),
           );
         },
+        borderRadius: BorderRadius.circular(12),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-            // 레벨 배지
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: notice.levelColor.withOpacity(0.2),
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: Text(
-                    notice.levelText,
-                    style: TextStyle(
-                      color: notice.levelColor,
-                      fontSize: 12,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-                if (notice.isActive) ...[
-                  const SizedBox(width: 8),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.green.withOpacity(0.2),
-                      borderRadius: BorderRadius.circular(4),
-                    ),
-                    child: const Text(
-                      '진행중',
-                      style: TextStyle(
-                        color: Colors.green,
-                        fontSize: 12,
-                        fontWeight: FontWeight.bold,
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Text(
+                      notice.title,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                        color: Colors.black87,
+                        height: 1.4,
                       ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  const Icon(
+                    Icons.open_in_new,
+                    size: 14,
+                    color: Colors.grey,
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(
+                    Icons.calendar_today,
+                    size: 12,
+                    color: Colors.grey,
+                  ),
+                  const SizedBox(width: 4),
+                  Text(
+                    _formatDate(notice.postedAt),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: Colors.grey,
                     ),
                   ),
                 ],
-              ],
-            ),
-            const SizedBox(height: 8),
-            
-            // 제목
-            Text(
-              notice.title,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
               ),
-            ),
-            const SizedBox(height: 8),
-            
-            // 기간
-            Row(
-              children: [
-                const Icon(Icons.access_time, size: 16, color: Colors.grey),
-                const SizedBox(width: 4),
-                Text(
-                  '${_formatDateTime(notice.startAt)} ~ ${_formatDateTime(notice.endAt)}',
-                  style: const TextStyle(
-                    fontSize: 12,
-                    color: Colors.grey,
-                  ),
-                ),
-              ],
-            ),
             ],
           ),
         ),
@@ -305,9 +298,11 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
     );
   }
 
-  String _formatDateTime(DateTime dateTime) {
-    return '${dateTime.year}-${dateTime.month.toString().padLeft(2, '0')}-${dateTime.day.toString().padLeft(2, '0')} '
-        '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
+  String _formatDate(DateTime date) {
+    final year = date.year;
+    final month = date.month.toString().padLeft(2, '0');
+    final day = date.day.toString().padLeft(2, '0');
+    return '$year.$month.$day';
   }
 }
 
