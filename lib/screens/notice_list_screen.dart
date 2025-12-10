@@ -2,11 +2,11 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import './../providers/settings_provider.dart';
 import './../core/localization/app_localizations.dart';
-import '../repositories/notice_repository.dart';
-import '../models/notice_model.dart';
-import 'notice_detail_screen.dart';
+import '../api/notice_api.dart';
+import '../models/shuttle_notice_models.dart';
+import 'notice/shuttle_notice_detail_screen.dart';
 
-/// 공지사항 목록 화면 (모달)
+/// 공지사항 목록 화면 (전체 화면)
 /// 셔틀 관련 공지사항을 목록으로 표시
 class NoticeListScreen extends StatefulWidget {
   const NoticeListScreen({super.key});
@@ -16,9 +16,10 @@ class NoticeListScreen extends StatefulWidget {
 }
 
 class _NoticeListScreenState extends State<NoticeListScreen> {
-  final NoticeRepository _repository = NoticeRepository.I;
-  List<NoticeModel> _notices = [];
+  final NoticeApi _api = NoticeApi.I;
+  List<ShuttleNoticeSummary> _notices = [];
   bool _isLoading = true;
+  bool _syncing = false;
   String? _errorMessage;
 
   @override
@@ -35,29 +36,11 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
     });
 
     try {
-      final response = await _repository.getNotices();
+      final notices = await _api.fetchShuttleNotices();
       
-      // start_at/end_at 기반 진행중 우선 정렬 + 기간 필터
-      final now = DateTime.now();
-      final sortedNotices = response.data.where((notice) {
-        // 현재 시간이 end_at 이후인 공지는 제외 (과거 공지 과다 노출 방지)
-        return notice.endAt.isAfter(now);
-      }).toList()
-        ..sort((a, b) {
-          // 진행 중인 공지 우선 정렬
-          final aIsActive = a.isActive;
-          final bIsActive = b.isActive;
-          
-          if (aIsActive && !bIsActive) return -1;
-          if (!aIsActive && bIsActive) return 1;
-          
-          // 둘 다 진행 중이거나 둘 다 진행 중이 아닌 경우, start_at 기준 내림차순
-          return b.startAt.compareTo(a.startAt);
-        });
-
       if (mounted) {
         setState(() {
-          _notices = sortedNotices;
+          _notices = notices;
           _isLoading = false;
         });
       }
@@ -66,6 +49,53 @@ class _NoticeListScreenState extends State<NoticeListScreen> {
         setState(() {
           _errorMessage = e.toString();
           _isLoading = false;
+        });
+      }
+    }
+  }
+
+  /// 최신 데이터 동기화 (크롤링)
+  Future<void> _handleSync() async {
+    if (_syncing) return;
+
+    try {
+      setState(() {
+        _syncing = true;
+        _errorMessage = null;
+      });
+
+      // 동기화 요청 (백엔드가 크롤링 수행)
+      await _api.syncShuttleNotices();
+
+      if (mounted) {
+        // 성공 시 목록 갱신
+        await _loadNotices();
+        
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('공지사항이 최신화되었습니다.'),
+            backgroundColor: Colors.green,
+            duration: Duration(seconds: 2),
+          ),
+        );
+      }
+    } catch (err) {
+      if (mounted) {
+        setState(() {
+          _errorMessage = '동기화에 실패했습니다: $err';
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('동기화에 실패했습니다: $err'),
+            backgroundColor: Colors.red,
+            duration: const Duration(seconds: 3),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _syncing = false;
         });
       }
     }
